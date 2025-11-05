@@ -21,16 +21,16 @@ export const Hero = () => {
             AI-Powered Fashion Assistant
           </div>
           
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
-            Your Wardrobe,
-            <span className="block bg-gradient-accent bg-clip-text text-transparent">
-              Reimagined
+          <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-tight">
+            Love Your Wardrobe,
+            <span className="block bg-gradient-accent bg-clip-text text-transparent mt-2">
+              Shop Less, Style More
             </span>
           </h1>
           
           <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Digitize your closet, discover your style, and make every outfit count. 
-            Shop smarter, buy less, look better.
+            Your personal AI fashion assistant. Digitize your closet, discover your unique style, 
+            and never wonder "what to wear" again.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
@@ -45,17 +45,17 @@ export const Hero = () => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-12 max-w-3xl mx-auto">
-            <div className="bg-card/80 backdrop-blur-sm rounded-lg p-6 shadow-soft border border-border">
-              <div className="text-3xl font-bold text-accent mb-2">AI Analysis</div>
-              <p className="text-sm text-muted-foreground">Auto-detect colors, fit, and style from your photos</p>
+            <div className="bg-card/80 backdrop-blur-sm rounded-xl p-6 shadow-soft border border-border hover:shadow-medium transition-all">
+              <div className="text-3xl font-bold text-primary mb-2">9M+</div>
+              <p className="text-sm text-muted-foreground">Users loving their wardrobes</p>
             </div>
-            <div className="bg-card/80 backdrop-blur-sm rounded-lg p-6 shadow-soft border border-border">
-              <div className="text-3xl font-bold text-accent mb-2">Smart Outfits</div>
-              <p className="text-sm text-muted-foreground">Get personalized outfit suggestions for any occasion</p>
+            <div className="bg-card/80 backdrop-blur-sm rounded-xl p-6 shadow-soft border border-border hover:shadow-medium transition-all">
+              <div className="text-3xl font-bold text-accent mb-2">Buy Less</div>
+              <p className="text-sm text-muted-foreground">Stop impulse shopping, use what you own</p>
             </div>
-            <div className="bg-card/80 backdrop-blur-sm rounded-lg p-6 shadow-soft border border-border">
-              <div className="text-3xl font-bold text-accent mb-2">Shop Less</div>
-              <p className="text-sm text-muted-foreground">Discover what you need and avoid impulse buys</p>
+            <div className="bg-card/80 backdrop-blur-sm rounded-xl p-6 shadow-soft border border-border hover:shadow-medium transition-all">
+              <div className="text-3xl font-bold text-primary mb-2">AI Powered</div>
+              <p className="text-sm text-muted-foreground">Instant style analysis & recommendations</p>
             </div>
           </div>
         </div>

@@ -64,9 +64,10 @@ export const WardrobeUpload = () => {
     <section className="container mx-auto px-4 py-16">
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="text-center space-y-4">
-          <h2 className="text-4xl font-bold tracking-tight">Build Your Digital Wardrobe</h2>
+          <h2 className="text-4xl md:text-5xl font-bold tracking-tight">Your Digital Closet Awaits</h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Upload photos of your clothing items. Our AI will automatically detect colors, categories, and styles.
+            Snap photos of your clothes. Our AI instantly tags colors, styles, and categories — 
+            so you can see everything you own in one place.
           </p>
         </div>
 

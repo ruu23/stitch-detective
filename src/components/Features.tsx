@@ -12,32 +12,32 @@ const features = [
   {
     icon: Sparkles,
     title: "AI Style Analysis",
-    description: "Automatically detect body shape, skin tone, and personal style preferences from your photos"
+    description: "Upload your photo and we'll detect your body shape, skin tone, hair color — and personalize everything for you"
   },
   {
     icon: Palette,
-    title: "Smart Color Matching",
-    description: "Get personalized color recommendations based on your skin tone and seasonal palettes"
+    title: "Auto-Tag Everything",
+    description: "AI automatically crops and tags your clothes by color, category, and style. No manual work required"
   },
   {
     icon: TrendingUp,
-    title: "Outfit Suggestions",
-    description: "AI-powered outfit planning with explanations of why each combination works"
+    title: "Daily Outfit Planner",
+    description: "Get outfit suggestions with AI explanations — discover new combinations you never thought of"
   },
   {
     icon: BarChart3,
-    title: "Wardrobe Analytics",
-    description: "Track usage, value, and discover gaps in your wardrobe to shop intentionally"
+    title: "Wardrobe Insights",
+    description: "See what you actually wear, track item value, and find the gaps (like missing neutrals)"
   },
   {
     icon: ShoppingBag,
-    title: "Smart Shopping",
-    description: "Connect to local and international retailers for personalized recommendations"
+    title: "Shop Intentionally",
+    description: "Only buy what you need. Connect to local and global retailers for smart, personalized recommendations"
   },
   {
     icon: Users,
-    title: "Community Styling",
-    description: "Share looks and get styling ideas from a community of fashion enthusiasts"
+    title: "Style Community",
+    description: "Share your looks, get inspiration from others, and discover your personal style together"
   }
 ];
 
@@ -47,10 +47,10 @@ export const Features = () => {
       <div className="max-w-6xl mx-auto space-y-12">
         <div className="text-center space-y-4">
           <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
-            Everything You Need to Master Your Style
+            See What You Own. Wear What You Love.
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Powered by AI to help you make confident style choices every day
+            AI-powered features that help you rediscover your wardrobe and build confidence in your style
           </p>
         </div>
 

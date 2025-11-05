@@ -43,10 +43,10 @@ export const Pricing = () => {
       <div className="max-w-5xl mx-auto space-y-12">
         <div className="text-center space-y-4">
           <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
-            Choose Your Style Journey
+            Start Free, Upgrade When Ready
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Start free, upgrade anytime. No credit card required.
+            Join millions loving their wardrobes. No credit card needed to start.
           </p>
         </div>
 
