@@ -43,7 +43,7 @@ const features = [
 
 export const Features = () => {
   return (
-    <section className="container mx-auto px-4 py-20 bg-gradient-warm">
+    <section className="container mx-auto px-4 py-20 bg-secondary/30">
       <div className="max-w-6xl mx-auto space-y-12">
         <div className="text-center space-y-4">
           <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
@@ -60,7 +60,7 @@ export const Features = () => {
             return (
               <Card 
                 key={index}
-                className="p-6 space-y-4 shadow-soft hover:shadow-medium transition-all duration-300 border-border bg-card/80 backdrop-blur-sm animate-fade-in"
+                className="p-6 space-y-4 shadow-sm hover:shadow-md transition-all duration-300 border-border animate-fade-in"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
                 <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center">

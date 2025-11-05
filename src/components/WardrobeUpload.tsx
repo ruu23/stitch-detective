@@ -74,8 +74,8 @@ export const WardrobeUpload = () => {
         <Card 
           className={`p-12 border-2 border-dashed transition-all duration-300 ${
             isDragging 
-              ? 'border-accent bg-accent/5 shadow-accent' 
-              : 'border-border bg-card/50 shadow-soft'
+              ? 'border-accent bg-accent/5' 
+              : 'border-border'
           }`}
           onDrop={handleDrop}
           onDragOver={(e) => {
@@ -112,7 +112,7 @@ export const WardrobeUpload = () => {
               onChange={handleFileInput}
             />
             <Button 
-              variant="accent" 
+              variant="default" 
               size="lg"
               onClick={() => document.getElementById('file-upload')?.click()}
             >
@@ -144,7 +144,7 @@ export const WardrobeUpload = () => {
                   key={item.id} 
                   className="relative group animate-fade-in"
                 >
-                  <Card className="overflow-hidden shadow-soft hover:shadow-medium transition-shadow">
+                  <Card className="overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                     <div className="aspect-square relative">
                       <img
                         src={item.preview}
@@ -163,7 +163,7 @@ export const WardrobeUpload = () => {
               ))}
             </div>
 
-            <Button variant="accent" size="lg" className="w-full">
+            <Button variant="default" size="lg" className="w-full">
               Analyze & Add to Wardrobe
             </Button>
           </div>

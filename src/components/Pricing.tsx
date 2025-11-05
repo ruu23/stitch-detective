@@ -32,7 +32,7 @@ const plans = [
       "Priority support"
     ],
     cta: "Start Premium Trial",
-    variant: "accent" as const,
+    variant: "default" as const,
     popular: true
   }
 ];
@@ -54,15 +54,15 @@ export const Pricing = () => {
           {plans.map((plan) => (
             <Card 
               key={plan.name}
-              className={`p-8 space-y-6 relative shadow-soft hover:shadow-medium transition-all duration-300 ${
+              className={`p-8 space-y-6 relative shadow-sm hover:shadow-md transition-all duration-300 ${
                 plan.popular 
-                  ? 'border-accent border-2 bg-gradient-subtle' 
-                  : 'border-border bg-card'
+                  ? 'border-accent border-2' 
+                  : 'border-border'
               }`}
             >
               {plan.popular && (
                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                  <div className="bg-gradient-accent text-accent-foreground px-4 py-1 rounded-full text-sm font-medium shadow-accent">
+                  <div className="bg-accent text-accent-foreground px-4 py-1 rounded-full text-sm font-medium">
                     Most Popular
                   </div>
                 </div>
