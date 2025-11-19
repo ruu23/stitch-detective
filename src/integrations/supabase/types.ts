@@ -14,7 +14,193 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      calendar_looks: {
+        Row: {
+          activity: string | null
+          created_at: string
+          id: string
+          outfit_id: string | null
+          scheduled_date: string
+          user_id: string
+        }
+        Insert: {
+          activity?: string | null
+          created_at?: string
+          id?: string
+          outfit_id?: string | null
+          scheduled_date: string
+          user_id: string
+        }
+        Update: {
+          activity?: string | null
+          created_at?: string
+          id?: string
+          outfit_id?: string | null
+          scheduled_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_looks_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "outfits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_looks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      closet_items: {
+        Row: {
+          brand: string | null
+          category: Database["public"]["Enums"]["clothing_category"]
+          color: string | null
+          created_at: string
+          id: string
+          image_url: string | null
+          name: string
+          notes: string | null
+          user_id: string
+        }
+        Insert: {
+          brand?: string | null
+          category: Database["public"]["Enums"]["clothing_category"]
+          color?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          name: string
+          notes?: string | null
+          user_id: string
+        }
+        Update: {
+          brand?: string | null
+          category?: Database["public"]["Enums"]["clothing_category"]
+          color?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          name?: string
+          notes?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "closet_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outfit_items: {
+        Row: {
+          item_id: string
+          outfit_id: string
+        }
+        Insert: {
+          item_id: string
+          outfit_id: string
+        }
+        Update: {
+          item_id?: string
+          outfit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outfit_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "closet_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outfit_items_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "outfits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outfits: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          occasion: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          occasion?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          occasion?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outfits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          favorite_brands: string[] | null
+          full_name: string | null
+          id: string
+          location: string | null
+          occupation: string | null
+          styling_preference:
+            | Database["public"]["Enums"]["styling_preference"]
+            | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          favorite_brands?: string[] | null
+          full_name?: string | null
+          id: string
+          location?: string | null
+          occupation?: string | null
+          styling_preference?:
+            | Database["public"]["Enums"]["styling_preference"]
+            | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          favorite_brands?: string[] | null
+          full_name?: string | null
+          id?: string
+          location?: string | null
+          occupation?: string | null
+          styling_preference?:
+            | Database["public"]["Enums"]["styling_preference"]
+            | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +209,15 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      clothing_category:
+        | "tops"
+        | "bottoms"
+        | "dresses"
+        | "outerwear"
+        | "shoes"
+        | "accessories"
+        | "bags"
+      styling_preference: "veiled" | "unveiled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +344,17 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      clothing_category: [
+        "tops",
+        "bottoms",
+        "dresses",
+        "outerwear",
+        "shoes",
+        "accessories",
+        "bags",
+      ],
+      styling_preference: ["veiled", "unveiled"],
+    },
   },
 } as const
