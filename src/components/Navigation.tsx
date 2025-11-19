@@ -1,4 +1,4 @@
-import { Home, Shirt, Calendar, ShoppingBag, User } from "lucide-react";
+import { Home, Shirt, Calendar, ShoppingBag, User, Users } from "lucide-react";
 import { BottomNavLink } from "./BottomNavLink";
 
 const Navigation = () => {
@@ -9,6 +9,7 @@ const Navigation = () => {
           <BottomNavLink to="/dashboard" icon={<Home />} label="Home" />
           <BottomNavLink to="/closet" icon={<Shirt />} label="Closet" />
           <BottomNavLink to="/calendar" icon={<Calendar />} label="Calendar" />
+          <BottomNavLink to="/friends" icon={<Users />} label="Friends" />
           <BottomNavLink to="/shop" icon={<ShoppingBag />} label="Shop" />
           <BottomNavLink to="/profile" icon={<User />} label="Profile" />
         </div>
