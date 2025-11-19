@@ -7,6 +7,18 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles } from "lucide-react";
+import { z } from "zod";
+
+const signUpSchema = z.object({
+  fullName: z.string().trim().min(2, "Name must be at least 2 characters").max(100, "Name must be less than 100 characters"),
+  email: z.string().email("Invalid email address").max(255, "Email must be less than 255 characters"),
+  password: z.string().min(8, "Password must be at least 8 characters").max(72, "Password must be less than 72 characters")
+});
+
+const signInSchema = z.object({
+  email: z.string().email("Invalid email address").max(255, "Email must be less than 255 characters"),
+  password: z.string().min(1, "Password is required")
+});
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -30,10 +42,23 @@ const Auth = () => {
     setLoading(true);
 
     try {
+      // Validate inputs
       if (isLogin) {
+        const validation = signInSchema.safeParse({ email, password });
+        if (!validation.success) {
+          const firstError = validation.error.errors[0];
+          toast({
+            title: "Validation Error",
+            description: firstError.message,
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+
         const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+          email: validation.data.email,
+          password: validation.data.password,
         });
 
         if (error) throw error;
@@ -44,13 +69,25 @@ const Auth = () => {
         });
         navigate("/dashboard");
       } else {
+        const validation = signUpSchema.safeParse({ fullName, email, password });
+        if (!validation.success) {
+          const firstError = validation.error.errors[0];
+          toast({
+            title: "Validation Error",
+            description: firstError.message,
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+
         const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
+          email: validation.data.email,
+          password: validation.data.password,
           options: {
             emailRedirectTo: `${window.location.origin}/dashboard`,
             data: {
-              full_name: fullName,
+              full_name: validation.data.fullName,
             },
           },
         });
