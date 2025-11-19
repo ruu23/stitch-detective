@@ -1,8 +1,11 @@
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import heroImage from "@/assets/hero-wardrobe.jpg";
 import { Sparkles } from "lucide-react";
 
 export const Hero = () => {
+  const navigate = useNavigate();
+  
   return (
     <section className="min-h-screen relative overflow-hidden bg-background">
       <div className="absolute inset-0 bg-gradient-to-b from-secondary/30 via-background to-background" />
@@ -26,11 +29,20 @@ export const Hero = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              <Button size="lg" className="text-base px-8 h-12 bg-primary hover:bg-primary/90">
+              <Button 
+                size="lg" 
+                className="text-base px-8 h-12 bg-primary hover:bg-primary/90"
+                onClick={() => navigate("/auth")}
+              >
                 Get Started Free
               </Button>
-              <Button size="lg" variant="outline" className="text-base px-8 h-12">
-                Watch Demo
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="text-base px-8 h-12"
+                onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+              >
+                Learn More
               </Button>
             </div>
             
