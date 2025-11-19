@@ -2,11 +2,92 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Shirt, Sparkles } from "lucide-react";
+
+const OCCUPATIONS = [
+  "Student - University",
+  "Student - High School",
+  "Employee",
+  "Manager",
+  "Senior Manager",
+  "Director",
+  "Executive",
+  "CEO",
+  "Entrepreneur",
+  "Freelancer",
+  "Graphic Designer",
+  "Software Developer",
+  "Engineer",
+  "Architect",
+  "Doctor",
+  "Nurse",
+  "Pharmacist",
+  "Lawyer",
+  "Consultant",
+  "Accountant",
+  "Banker",
+  "Sales Representative",
+  "Customer Service Representative",
+  "Teacher",
+  "Professor",
+  "Researcher",
+  "Digital Marketer",
+  "Social Media Manager",
+  "Content Creator",
+  "Photographer",
+  "Videographer",
+  "Fashion Designer",
+  "Model",
+  "Stylist",
+  "Athlete",
+  "Fitness Trainer",
+  "Chef",
+  "Waiter/Waitress",
+  "Flight Attendant",
+  "Pilot",
+  "Government Employee",
+  "Military Personnel",
+  "Police Officer",
+  "Real Estate Agent",
+  "Interior Designer",
+  "Human Resources Professional",
+  "Project Manager",
+  "Administrative Assistant",
+  "Writer",
+  "Journalist",
+  "Artist",
+  "Musician",
+  "Retired",
+  "Homemaker",
+  "Other"
+];
+
+const COUNTRIES = [
+  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria",
+  "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan",
+  "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cambodia", "Cameroon",
+  "Canada", "Cape Verde", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo", "Costa Rica",
+  "Croatia", "Cuba", "Cyprus", "Czech Republic", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "East Timor", "Ecuador",
+  "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Ethiopia", "Fiji", "Finland", "France", "Gabon",
+  "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana",
+  "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel",
+  "Italy", "Ivory Coast", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "North Korea", "South Korea",
+  "Kosovo", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein",
+  "Lithuania", "Luxembourg", "Macedonia", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands",
+  "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique",
+  "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "Norway",
+  "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland",
+  "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino",
+  "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands",
+  "Somalia", "South Africa", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Swaziland", "Sweden", "Switzerland",
+  "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey",
+  "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu",
+  "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+];
 
 const Onboarding = () => {
   const [step, setStep] = useState(1);
@@ -147,21 +228,33 @@ const Onboarding = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="occupation">Occupation</Label>
-                  <Input
-                    id="occupation"
-                    placeholder="e.g., Teacher, Designer, Student"
-                    value={occupation}
-                    onChange={(e) => setOccupation(e.target.value)}
-                  />
+                  <Select value={occupation} onValueChange={setOccupation}>
+                    <SelectTrigger id="occupation">
+                      <SelectValue placeholder="Select your occupation" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {OCCUPATIONS.map((occ) => (
+                        <SelectItem key={occ} value={occ}>
+                          {occ}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="location">Location</Label>
-                  <Input
-                    id="location"
-                    placeholder="e.g., Cairo, Egypt"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                  />
+                  <Label htmlFor="location">Place You Live</Label>
+                  <Select value={location} onValueChange={setLocation}>
+                    <SelectTrigger id="location">
+                      <SelectValue placeholder="Select your country" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {COUNTRIES.map((country) => (
+                        <SelectItem key={country} value={country}>
+                          {country}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="flex gap-3">
