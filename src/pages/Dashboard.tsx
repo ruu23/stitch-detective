@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Navigation from "@/components/Navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Sun, MapPin, Shirt, Calendar, ShoppingBag } from "lucide-react";
+import { Sparkles, Sun, MapPin, Shirt, Calendar, ShoppingBag, Scan } from "lucide-react";
 
 interface Profile {
   full_name: string;
@@ -96,6 +96,13 @@ const Dashboard = () => {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-4 mb-6">
+          <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate("/body-scan")}>
+            <CardContent className="p-6 text-center">
+              <Scan className="h-8 w-8 mx-auto mb-2 text-primary" />
+              <p className="font-medium">Body Scan</p>
+              <p className="text-xs text-muted-foreground">Perfect fit</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate("/calendar")}>
             <CardContent className="p-6 text-center">
               <Calendar className="h-8 w-8 mx-auto mb-2 text-primary" />
@@ -108,6 +115,13 @@ const Dashboard = () => {
               <ShoppingBag className="h-8 w-8 mx-auto mb-2 text-primary" />
               <p className="font-medium">Shop</p>
               <p className="text-xs text-muted-foreground">Partner brands</p>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate("/closet")}>
+            <CardContent className="p-6 text-center">
+              <Shirt className="h-8 w-8 mx-auto mb-2 text-primary" />
+              <p className="font-medium">My Closet</p>
+              <p className="text-xs text-muted-foreground">View items</p>
             </CardContent>
           </Card>
         </div>
