@@ -13,6 +13,7 @@ import Shop from "./pages/Shop";
 import Profile from "./pages/Profile";
 import Friends from "./pages/Friends";
 import BodyScan from "./pages/BodyScan";
+import OutfitRecommendations from "./pages/OutfitRecommendations";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/profile" element={<Profile />} />
           <Route path="/friends" element={<Friends />} />
           <Route path="/body-scan" element={<BodyScan />} />
+          <Route path="/outfit-recommendations" element={<OutfitRecommendations />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
