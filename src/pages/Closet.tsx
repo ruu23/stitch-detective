@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Shirt } from "lucide-react";
+import { Camera, Shirt } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddClosetItemDialog } from "@/components/AddClosetItemDialog";
 
@@ -88,13 +88,20 @@ const Closet = () => {
   return (
     <div className="min-h-screen bg-background pb-20">
       <div className="max-w-screen-xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-display font-semibold">My Closet</h1>
-            <p className="text-sm text-muted-foreground">{items.length} items</p>
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-display font-semibold">My Closet</h1>
+              <p className="text-sm text-muted-foreground">{items.length} items</p>
+            </div>
           </div>
-          <Button size="icon" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-5 w-5" />
+          <Button 
+            onClick={() => setDialogOpen(true)}
+            className="w-full bg-foreground text-background py-6 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-foreground/90 transition-all"
+            size="lg"
+          >
+            <Camera className="w-5 h-5" />
+            Add Item to Closet
           </Button>
         </div>
 
@@ -107,7 +114,7 @@ const Closet = () => {
                 Start adding your clothing items to get personalized outfit suggestions
               </p>
               <Button onClick={() => setDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
+                <Camera className="h-4 w-4 mr-2" />
                 Add Your First Item
               </Button>
             </CardContent>
