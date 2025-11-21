@@ -31,21 +31,9 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a fashion expert AI analyzing clothing items. Analyze the image and provide a detailed JSON response with the following structure:
-{
-  "item_type": "top|bottom|dress|shoes|accessories",
-  "category": "shirt|pants|dress|sneakers|jacket|skirt|etc",
-  "color_primary": "main color name",
-  "color_secondary": "secondary color name or null",
-  "pattern": "solid|striped|floral|geometric|etc",
-  "season": "spring|summer|fall|winter|all-season",
-  "brand": "detected brand or null",
-  "ai_tags": ["tag1", "tag2", "tag3"],
-  "name": "descriptive item name",
-  "style_notes": "brief styling suggestions"
-}
+            content: `You are a fashion expert AI analyzing clothing items with special attention to modest and hijab-friendly fashion. Analyze the image and provide a detailed JSON response.
 
-Be specific and accurate. For ai_tags, include: style (casual, formal, sporty), occasion (work, party, everyday), fit (loose, fitted), and material if visible (cotton, denim, leather).`
+Be specific and accurate. Consider coverage level, formality, and whether items are suitable for modest dressing.`
           },
           {
             role: "user",
@@ -74,22 +62,51 @@ Be specific and accurate. For ai_tags, include: style (casual, formal, sporty), 
                 properties: {
                   item_type: {
                     type: "string",
-                    enum: ["top", "bottom", "dress", "shoes", "accessories"]
+                    enum: ["top", "bottom", "dress", "outerwear", "shoes", "accessory"]
                   },
-                  category: { type: "string" },
+                  category: { 
+                    type: "string",
+                    description: "Specific category like blazer, jeans, midi dress"
+                  },
                   color_primary: { type: "string" },
                   color_secondary: { type: "string" },
-                  pattern: { type: "string" },
-                  season: { type: "string" },
-                  brand: { type: "string" },
-                  ai_tags: {
+                  pattern: {
+                    type: "string",
+                    enum: ["solid", "striped", "floral", "geometric", "abstract", "none"]
+                  },
+                  style: {
+                    type: "string",
+                    enum: ["casual", "formal", "business", "evening", "sporty"]
+                  },
+                  season: {
+                    type: "array",
+                    items: {
+                      type: "string",
+                      enum: ["spring", "summer", "fall", "winter"]
+                    }
+                  },
+                  suitable_occasions: {
                     type: "array",
                     items: { type: "string" }
                   },
-                  name: { type: "string" },
-                  style_notes: { type: "string" }
+                  formality_level: {
+                    type: "integer",
+                    minimum: 1,
+                    maximum: 5
+                  },
+                  tags: {
+                    type: "array",
+                    items: { type: "string" }
+                  },
+                  hijab_friendly: { type: "boolean" },
+                  modest_coverage: {
+                    type: "string",
+                    enum: ["high", "medium", "low"]
+                  },
+                  brand: { type: "string" },
+                  name: { type: "string" }
                 },
-                required: ["item_type", "category", "color_primary", "pattern", "season", "ai_tags", "name"],
+                required: ["item_type", "category", "color_primary", "pattern", "style", "season", "suitable_occasions", "formality_level", "tags", "hijab_friendly", "modest_coverage", "name"],
                 additionalProperties: false
               }
             }
