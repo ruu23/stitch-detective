@@ -88,14 +88,21 @@ const Dashboard = () => {
                 <p>Build your closet to get AI-styled outfits</p>
               </div>
             </div>
-            <Button className="w-full" onClick={() => navigate("/closet")}>
-              Add Items to Your Closet
+            <Button className="w-full" onClick={() => navigate("/outfit-recommendations")}>
+              Get AI Outfit Suggestions
             </Button>
           </CardContent>
         </Card>
 
         {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-4 mb-6">
+          <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate("/outfit-recommendations")}>
+            <CardContent className="p-6 text-center">
+              <Sparkles className="h-8 w-8 mx-auto mb-2 text-primary" />
+              <p className="font-medium">AI Stylist</p>
+              <p className="text-xs text-muted-foreground">Get outfits</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate("/body-scan")}>
             <CardContent className="p-6 text-center">
               <Scan className="h-8 w-8 mx-auto mb-2 text-primary" />
