@@ -1,1 +1,4 @@
 project_id = "ssuingprkeergtpxtsji"
+
+[functions.analyze-closet-item]
+verify_jwt = true

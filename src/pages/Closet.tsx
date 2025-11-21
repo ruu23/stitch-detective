@@ -6,19 +6,30 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Shirt } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AddClosetItemDialog } from "@/components/AddClosetItemDialog";
 
 interface ClosetItem {
   id: string;
   name: string;
   category: string;
+  item_type?: string;
   brand?: string;
   color?: string;
+  color_primary?: string;
+  color_secondary?: string;
+  pattern?: string;
+  season?: string;
   image_url?: string;
+  price_paid?: number;
+  wear_count?: number;
+  cost_per_wear?: number;
+  ai_tags?: string[];
 }
 
 const Closet = () => {
   const [items, setItems] = useState<ClosetItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -82,7 +93,7 @@ const Closet = () => {
             <h1 className="text-2xl font-display font-semibold">My Closet</h1>
             <p className="text-sm text-muted-foreground">{items.length} items</p>
           </div>
-          <Button size="icon">
+          <Button size="icon" onClick={() => setDialogOpen(true)}>
             <Plus className="h-5 w-5" />
           </Button>
         </div>
@@ -95,7 +106,7 @@ const Closet = () => {
               <p className="text-muted-foreground mb-6">
                 Start adding your clothing items to get personalized outfit suggestions
               </p>
-              <Button>
+              <Button onClick={() => setDialogOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Your First Item
               </Button>
@@ -130,6 +141,12 @@ const Closet = () => {
       </div>
 
       <Navigation />
+      
+      <AddClosetItemDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSuccess={loadClosetItems}
+      />
     </div>
   );
 };
