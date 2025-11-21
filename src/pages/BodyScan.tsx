@@ -6,7 +6,7 @@ import { Camera, Check, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-type ScanStep = "intro" | "front" | "side" | "processing" | "complete";
+type ScanStep = "intro" | "front" | "side" | "measurements" | "processing" | "complete";
 
 const BodyScan = () => {
   const navigate = useNavigate();
@@ -14,6 +14,10 @@ const BodyScan = () => {
   const [step, setStep] = useState<ScanStep>("intro");
   const [frontPhoto, setFrontPhoto] = useState<string | null>(null);
   const [sidePhoto, setSidePhoto] = useState<string | null>(null);
+  const [height, setHeight] = useState("");
+  const [bust, setBust] = useState("");
+  const [waist, setWaist] = useState("");
+  const [hips, setHips] = useState("");
 
   const handlePhotoCapture = async (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -30,13 +34,13 @@ const BodyScan = () => {
         setStep("side");
       } else {
         setSidePhoto(result);
-        handleSaveScan(frontPhoto!, result);
+        setStep("measurements");
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleSaveScan = async (frontUrl: string, sideUrl: string) => {
+  const handleSaveScan = async (frontUrl: string, sideUrl: string, useAI: boolean = false) => {
     try {
       setStep("processing");
 
@@ -85,6 +89,10 @@ const BodyScan = () => {
         user_id: user.id,
         front_image_url: frontPublicUrl,
         side_image_url: sidePublicUrl,
+        height: height ? parseFloat(height) : null,
+        bust: bust ? parseFloat(bust) : null,
+        waist: waist ? parseFloat(waist) : null,
+        hips: hips ? parseFloat(hips) : null,
       });
 
       if (dbError) throw dbError;
@@ -274,6 +282,96 @@ const BodyScan = () => {
                   onClick={() => setStep("front")}
                 >
                   Retake Front Photo
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {step === "measurements" && (
+          <Card>
+            <CardContent className="p-8 space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-display font-bold mb-2">
+                  Confirm Your Measurements
+                </h2>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">
+                    Height (cm)
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                    value={height}
+                    onChange={(e) => setHeight(e.target.value)}
+                    placeholder="165"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">
+                    Bust (cm)
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                    value={bust}
+                    onChange={(e) => setBust(e.target.value)}
+                    placeholder="90"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">
+                    Waist (cm)
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                    value={waist}
+                    onChange={(e) => setWaist(e.target.value)}
+                    placeholder="70"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">
+                    Hips (cm)
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                    value={hips}
+                    onChange={(e) => setHips(e.target.value)}
+                    placeholder="95"
+                  />
+                </div>
+              </div>
+
+              <a
+                href="https://www.youtube.com/results?search_query=how+to+measure+yourself+for+clothing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-primary hover:underline block text-center"
+              >
+                How to measure yourself correctly
+              </a>
+
+              <div className="space-y-3">
+                <Button
+                  size="lg"
+                  className="w-full"
+                  onClick={() => handleSaveScan(frontPhoto!, sidePhoto!, true)}
+                >
+                  Use AI Estimation
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => handleSaveScan(frontPhoto!, sidePhoto!, false)}
+                >
+                  Enter Manually
                 </Button>
               </div>
             </CardContent>
