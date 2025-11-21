@@ -47,6 +47,10 @@ const BodyScan = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
+      let aiAnalysis = null;
+      let publicFrontUrl = "";
+      let publicSideUrl = "";
+
       // Convert base64 to blob
       const frontBlob = await fetch(frontUrl).then(r => r.blob());
       const sideBlob = await fetch(sideUrl).then(r => r.blob());
@@ -84,15 +88,56 @@ const BodyScan = () => {
         .from("body-scans")
         .getPublicUrl(sideUpload.data.path);
 
+      publicFrontUrl = frontPublicUrl;
+      publicSideUrl = sidePublicUrl;
+
+      // Get AI analysis if requested
+      if (useAI) {
+        toast({
+          title: "Analyzing body shape...",
+          description: "This may take a moment",
+        });
+
+        const { data: analysisData, error: analysisError } = await supabase.functions.invoke(
+          "analyze-body-shape",
+          {
+            body: {
+              frontImageUrl: frontPublicUrl,
+              sideImageUrl: sidePublicUrl,
+            },
+          }
+        );
+
+        if (analysisError) {
+          console.error("AI analysis error:", analysisError);
+          toast({
+            title: "AI Analysis Failed",
+            description: "Using manual measurements instead",
+            variant: "destructive",
+          });
+        } else if (analysisData) {
+          aiAnalysis = analysisData;
+          // Update state with AI estimates
+          if (analysisData.estimated_measurements) {
+            setHeight(String(analysisData.estimated_measurements.height || ""));
+            setBust(String(analysisData.estimated_measurements.bust || ""));
+            setWaist(String(analysisData.estimated_measurements.waist || ""));
+            setHips(String(analysisData.estimated_measurements.hips || ""));
+          }
+        }
+      }
+
       // Save to database
       const { error: dbError } = await supabase.from("body_scans").insert({
         user_id: user.id,
-        front_image_url: frontPublicUrl,
-        side_image_url: sidePublicUrl,
-        height: height ? parseFloat(height) : null,
-        bust: bust ? parseFloat(bust) : null,
-        waist: waist ? parseFloat(waist) : null,
-        hips: hips ? parseFloat(hips) : null,
+        front_image_url: publicFrontUrl,
+        side_image_url: publicSideUrl,
+        height: height ? parseFloat(height) : (aiAnalysis?.estimated_measurements?.height || null),
+        bust: bust ? parseFloat(bust) : (aiAnalysis?.estimated_measurements?.bust || null),
+        waist: waist ? parseFloat(waist) : (aiAnalysis?.estimated_measurements?.waist || null),
+        hips: hips ? parseFloat(hips) : (aiAnalysis?.estimated_measurements?.hips || null),
+        body_shape: aiAnalysis?.body_shape || null,
+        measurements_json: aiAnalysis ? JSON.stringify(aiAnalysis) : null,
       });
 
       if (dbError) throw dbError;
