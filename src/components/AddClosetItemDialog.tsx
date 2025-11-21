@@ -191,18 +191,23 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       const { error } = await supabase.from("closet_items").insert({
         user_id: user.id,
         name: itemDetails.name,
-        brand: itemDetails.brand || null,
+        brand: itemDetails.brand || aiAnalysis.brand || null,
         price_paid: itemDetails.price_paid ? parseFloat(itemDetails.price_paid) : null,
         purchase_date: itemDetails.purchase_date || null,
         image_url: aiAnalysis.imageUrl,
         item_type: aiAnalysis.item_type,
         category: aiAnalysis.category,
         color_primary: aiAnalysis.color_primary,
-        color_secondary: aiAnalysis.color_secondary,
+        color_secondary: aiAnalysis.color_secondary || null,
         pattern: aiAnalysis.pattern,
-        season: aiAnalysis.season,
-        ai_tags: aiAnalysis.ai_tags,
-        notes: aiAnalysis.style_notes,
+        season: Array.isArray(aiAnalysis.season) ? aiAnalysis.season.join(',') : aiAnalysis.season,
+        style: aiAnalysis.style || null,
+        suitable_occasions: aiAnalysis.suitable_occasions || [],
+        formality_level: aiAnalysis.formality_level || null,
+        hijab_friendly: aiAnalysis.hijab_friendly || false,
+        modest_coverage: aiAnalysis.modest_coverage || null,
+        ai_tags: aiAnalysis.tags || [],
+        notes: null,
       });
 
       if (error) throw error;
@@ -316,7 +321,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
               />
               <div className="flex-1 space-y-2">
                 <div className="flex flex-wrap gap-2">
-                  {aiAnalysis.ai_tags?.map((tag: string, i: number) => (
+                  {aiAnalysis.tags?.map((tag: string, i: number) => (
                     <span
                       key={i}
                       className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full"
@@ -325,7 +330,20 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
                     </span>
                   ))}
                 </div>
-                <p className="text-sm text-muted-foreground">{aiAnalysis.style_notes}</p>
+                <div className="flex gap-2 text-xs text-muted-foreground">
+                  <span className="font-semibold">{aiAnalysis.style}</span>
+                  <span>•</span>
+                  <span>Formality: {aiAnalysis.formality_level}/5</span>
+                  {aiAnalysis.hijab_friendly && (
+                    <>
+                      <span>•</span>
+                      <span className="text-primary">✓ Hijab Friendly</span>
+                    </>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Coverage: {aiAnalysis.modest_coverage} | Seasons: {Array.isArray(aiAnalysis.season) ? aiAnalysis.season.join(', ') : aiAnalysis.season}
+                </p>
               </div>
             </div>
 

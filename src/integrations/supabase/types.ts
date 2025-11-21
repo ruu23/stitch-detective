@@ -234,15 +234,20 @@ export type Database = {
           color_secondary: string | null
           cost_per_wear: number | null
           created_at: string
+          formality_level: number | null
+          hijab_friendly: boolean | null
           id: string
           image_url: string | null
           item_type: string | null
+          modest_coverage: string | null
           name: string
           notes: string | null
           pattern: string | null
           price_paid: number | null
           purchase_date: string | null
           season: string | null
+          style: string | null
+          suitable_occasions: string[] | null
           user_id: string
           wear_count: number | null
         }
@@ -255,15 +260,20 @@ export type Database = {
           color_secondary?: string | null
           cost_per_wear?: number | null
           created_at?: string
+          formality_level?: number | null
+          hijab_friendly?: boolean | null
           id?: string
           image_url?: string | null
           item_type?: string | null
+          modest_coverage?: string | null
           name: string
           notes?: string | null
           pattern?: string | null
           price_paid?: number | null
           purchase_date?: string | null
           season?: string | null
+          style?: string | null
+          suitable_occasions?: string[] | null
           user_id: string
           wear_count?: number | null
         }
@@ -276,15 +286,20 @@ export type Database = {
           color_secondary?: string | null
           cost_per_wear?: number | null
           created_at?: string
+          formality_level?: number | null
+          hijab_friendly?: boolean | null
           id?: string
           image_url?: string | null
           item_type?: string | null
+          modest_coverage?: string | null
           name?: string
           notes?: string | null
           pattern?: string | null
           price_paid?: number | null
           purchase_date?: string | null
           season?: string | null
+          style?: string | null
+          suitable_occasions?: string[] | null
           user_id?: string
           wear_count?: number | null
         }
