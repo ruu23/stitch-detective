@@ -14,6 +14,174 @@ export type Database = {
   }
   public: {
     Tables: {
+      avatars: {
+        Row: {
+          avatar_model_url: string | null
+          avatar_thumbnail_url: string | null
+          body_shape_params: Json | null
+          created_at: string
+          face_features: Json | null
+          hair_color: string | null
+          hair_style: string | null
+          id: string
+          skin_tone_hex: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_model_url?: string | null
+          avatar_thumbnail_url?: string | null
+          body_shape_params?: Json | null
+          created_at?: string
+          face_features?: Json | null
+          hair_color?: string | null
+          hair_style?: string | null
+          id?: string
+          skin_tone_hex?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_model_url?: string | null
+          avatar_thumbnail_url?: string | null
+          body_shape_params?: Json | null
+          created_at?: string
+          face_features?: Json | null
+          hair_color?: string | null
+          hair_style?: string | null
+          id?: string
+          skin_tone_hex?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "avatars_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      body_scans: {
+        Row: {
+          body_shape: string | null
+          bust: number | null
+          created_at: string
+          face_image_url: string | null
+          front_image_url: string | null
+          hair_color: string | null
+          height: number | null
+          hips: number | null
+          id: string
+          inseam: number | null
+          measurements_json: Json | null
+          shoulder_width: number | null
+          side_image_url: string | null
+          skin_tone_hex: string | null
+          skin_undertone: string | null
+          updated_at: string
+          user_id: string
+          waist: number | null
+          weight: number | null
+        }
+        Insert: {
+          body_shape?: string | null
+          bust?: number | null
+          created_at?: string
+          face_image_url?: string | null
+          front_image_url?: string | null
+          hair_color?: string | null
+          height?: number | null
+          hips?: number | null
+          id?: string
+          inseam?: number | null
+          measurements_json?: Json | null
+          shoulder_width?: number | null
+          side_image_url?: string | null
+          skin_tone_hex?: string | null
+          skin_undertone?: string | null
+          updated_at?: string
+          user_id: string
+          waist?: number | null
+          weight?: number | null
+        }
+        Update: {
+          body_shape?: string | null
+          bust?: number | null
+          created_at?: string
+          face_image_url?: string | null
+          front_image_url?: string | null
+          hair_color?: string | null
+          height?: number | null
+          hips?: number | null
+          id?: string
+          inseam?: number | null
+          measurements_json?: Json | null
+          shoulder_width?: number | null
+          side_image_url?: string | null
+          skin_tone_hex?: string | null
+          skin_undertone?: string | null
+          updated_at?: string
+          user_id?: string
+          waist?: number | null
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "body_scans_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_tracking: {
+        Row: {
+          created_at: string
+          id: string
+          month_year: string
+          monthly_budget: number
+          savings_goal: number | null
+          spent_this_month: number | null
+          updated_at: string
+          user_id: string
+          wishlist_items: Json | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month_year: string
+          monthly_budget: number
+          savings_goal?: number | null
+          spent_this_month?: number | null
+          updated_at?: string
+          user_id: string
+          wishlist_items?: Json | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month_year?: string
+          monthly_budget?: number
+          savings_goal?: number | null
+          spent_this_month?: number | null
+          updated_at?: string
+          user_id?: string
+          wishlist_items?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_tracking_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calendar_looks: {
         Row: {
           activity: string | null
@@ -58,37 +226,67 @@ export type Database = {
       }
       closet_items: {
         Row: {
+          ai_tags: string[] | null
           brand: string | null
           category: Database["public"]["Enums"]["clothing_category"]
           color: string | null
+          color_primary: string | null
+          color_secondary: string | null
+          cost_per_wear: number | null
           created_at: string
           id: string
           image_url: string | null
+          item_type: string | null
           name: string
           notes: string | null
+          pattern: string | null
+          price_paid: number | null
+          purchase_date: string | null
+          season: string | null
           user_id: string
+          wear_count: number | null
         }
         Insert: {
+          ai_tags?: string[] | null
           brand?: string | null
           category: Database["public"]["Enums"]["clothing_category"]
           color?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          cost_per_wear?: number | null
           created_at?: string
           id?: string
           image_url?: string | null
+          item_type?: string | null
           name: string
           notes?: string | null
+          pattern?: string | null
+          price_paid?: number | null
+          purchase_date?: string | null
+          season?: string | null
           user_id: string
+          wear_count?: number | null
         }
         Update: {
+          ai_tags?: string[] | null
           brand?: string | null
           category?: Database["public"]["Enums"]["clothing_category"]
           color?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          cost_per_wear?: number | null
           created_at?: string
           id?: string
           image_url?: string | null
+          item_type?: string | null
           name?: string
           notes?: string | null
+          pattern?: string | null
+          price_paid?: number | null
+          purchase_date?: string | null
+          season?: string | null
           user_id?: string
+          wear_count?: number | null
         }
         Relationships: [
           {
@@ -180,25 +378,43 @@ export type Database = {
       }
       outfits: {
         Row: {
+          avatar_render_url: string | null
+          budget_used: number | null
           created_at: string
           id: string
+          location: string | null
           name: string
           occasion: string | null
+          scheduled_date: string | null
           user_id: string
+          weather_condition: string | null
+          weather_temp: number | null
         }
         Insert: {
+          avatar_render_url?: string | null
+          budget_used?: number | null
           created_at?: string
           id?: string
+          location?: string | null
           name: string
           occasion?: string | null
+          scheduled_date?: string | null
           user_id: string
+          weather_condition?: string | null
+          weather_temp?: number | null
         }
         Update: {
+          avatar_render_url?: string | null
+          budget_used?: number | null
           created_at?: string
           id?: string
+          location?: string | null
           name?: string
           occasion?: string | null
+          scheduled_date?: string | null
           user_id?: string
+          weather_condition?: string | null
+          weather_temp?: number | null
         }
         Relationships: [
           {
@@ -213,11 +429,15 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          body_measurements: Json | null
           created_at: string
           favorite_brands: string[] | null
           full_name: string | null
           id: string
+          is_veiled: boolean | null
+          lifestyle_type: string | null
           location: string | null
+          monthly_budget: number | null
           occupation: string | null
           styling_preference:
             | Database["public"]["Enums"]["styling_preference"]
@@ -226,11 +446,15 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          body_measurements?: Json | null
           created_at?: string
           favorite_brands?: string[] | null
           full_name?: string | null
           id: string
+          is_veiled?: boolean | null
+          lifestyle_type?: string | null
           location?: string | null
+          monthly_budget?: number | null
           occupation?: string | null
           styling_preference?:
             | Database["public"]["Enums"]["styling_preference"]
@@ -239,11 +463,15 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          body_measurements?: Json | null
           created_at?: string
           favorite_brands?: string[] | null
           full_name?: string | null
           id?: string
+          is_veiled?: boolean | null
+          lifestyle_type?: string | null
           location?: string | null
+          monthly_budget?: number | null
           occupation?: string | null
           styling_preference?:
             | Database["public"]["Enums"]["styling_preference"]
@@ -251,6 +479,56 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      trips: {
+        Row: {
+          activities: string[] | null
+          budget_allocated: number | null
+          created_at: string
+          destination: string
+          end_date: string
+          id: string
+          packing_list: string[] | null
+          start_date: string
+          updated_at: string
+          user_id: string
+          weather_forecast: Json | null
+        }
+        Insert: {
+          activities?: string[] | null
+          budget_allocated?: number | null
+          created_at?: string
+          destination: string
+          end_date: string
+          id?: string
+          packing_list?: string[] | null
+          start_date: string
+          updated_at?: string
+          user_id: string
+          weather_forecast?: Json | null
+        }
+        Update: {
+          activities?: string[] | null
+          budget_allocated?: number | null
+          created_at?: string
+          destination?: string
+          end_date?: string
+          id?: string
+          packing_list?: string[] | null
+          start_date?: string
+          updated_at?: string
+          user_id?: string
+          weather_forecast?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trips_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
