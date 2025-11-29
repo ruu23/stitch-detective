@@ -8,3 +8,6 @@ verify_jwt = true
 
 [functions.generate-outfit-recommendations]
 verify_jwt = true
+
+[functions.generate-avatar]
+verify_jwt = true
