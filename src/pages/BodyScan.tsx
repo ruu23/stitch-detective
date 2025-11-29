@@ -6,7 +6,7 @@ import { Camera, Check, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-type ScanStep = "intro" | "front" | "side" | "measurements" | "processing" | "complete";
+type ScanStep = "intro" | "front" | "side" | "face" | "measurements" | "avatar-processing" | "processing" | "complete";
 
 const BodyScan = () => {
   const navigate = useNavigate();
@@ -14,6 +14,7 @@ const BodyScan = () => {
   const [step, setStep] = useState<ScanStep>("intro");
   const [frontPhoto, setFrontPhoto] = useState<string | null>(null);
   const [sidePhoto, setSidePhoto] = useState<string | null>(null);
+  const [facePhoto, setFacePhoto] = useState<string | null>(null);
   const [height, setHeight] = useState("");
   const [bust, setBust] = useState("");
   const [waist, setWaist] = useState("");
@@ -21,7 +22,7 @@ const BodyScan = () => {
 
   const handlePhotoCapture = async (
     event: React.ChangeEvent<HTMLInputElement>,
-    type: "front" | "side"
+    type: "front" | "side" | "face"
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -32,17 +33,24 @@ const BodyScan = () => {
       if (type === "front") {
         setFrontPhoto(result);
         setStep("side");
-      } else {
+      } else if (type === "side") {
         setSidePhoto(result);
+        setStep("face");
+      } else {
+        setFacePhoto(result);
         setStep("measurements");
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleSaveScan = async (frontUrl: string, sideUrl: string, useAI: boolean = false) => {
+  const handleSaveScan = async (frontUrl: string, sideUrl: string, faceUrl: string, useAI: boolean = false, generateAvatar: boolean = false) => {
     try {
-      setStep("processing");
+      if (generateAvatar) {
+        setStep("avatar-processing");
+      } else {
+        setStep("processing");
+      }
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
@@ -54,11 +62,13 @@ const BodyScan = () => {
       // Convert base64 to blob
       const frontBlob = await fetch(frontUrl).then(r => r.blob());
       const sideBlob = await fetch(sideUrl).then(r => r.blob());
+      const faceBlob = await fetch(faceUrl).then(r => r.blob());
 
       // Upload to storage
       const timestamp = Date.now();
       const frontPath = `${user.id}/front-${timestamp}.jpg`;
       const sidePath = `${user.id}/side-${timestamp}.jpg`;
+      const facePath = `${user.id}/face-${timestamp}.jpg`;
 
       // Create storage bucket if it doesn't exist
       const { data: buckets } = await supabase.storage.listBuckets();
@@ -72,13 +82,15 @@ const BodyScan = () => {
         if (bucketError) console.error('Bucket creation error:', bucketError);
       }
 
-      const [frontUpload, sideUpload] = await Promise.all([
+      const [frontUpload, sideUpload, faceUpload] = await Promise.all([
         supabase.storage.from("body-scans").upload(frontPath, frontBlob),
         supabase.storage.from("body-scans").upload(sidePath, sideBlob),
+        supabase.storage.from("body-scans").upload(facePath, faceBlob),
       ]);
 
       if (frontUpload.error) throw frontUpload.error;
       if (sideUpload.error) throw sideUpload.error;
+      if (faceUpload.error) throw faceUpload.error;
 
       const { data: { publicUrl: frontPublicUrl } } = supabase.storage
         .from("body-scans")
@@ -87,6 +99,10 @@ const BodyScan = () => {
       const { data: { publicUrl: sidePublicUrl } } = supabase.storage
         .from("body-scans")
         .getPublicUrl(sideUpload.data.path);
+
+      const { data: { publicUrl: facePublicUrl } } = supabase.storage
+        .from("body-scans")
+        .getPublicUrl(faceUpload.data.path);
 
       publicFrontUrl = frontPublicUrl;
       publicSideUrl = sidePublicUrl;
@@ -128,19 +144,54 @@ const BodyScan = () => {
       }
 
       // Save to database
-      const { error: dbError } = await supabase.from("body_scans").insert({
+      const { data: bodyScanData, error: dbError } = await supabase.from("body_scans").insert({
         user_id: user.id,
         front_image_url: publicFrontUrl,
         side_image_url: publicSideUrl,
+        face_image_url: facePublicUrl,
         height: height ? parseFloat(height) : (aiAnalysis?.estimated_measurements?.height || null),
         bust: bust ? parseFloat(bust) : (aiAnalysis?.estimated_measurements?.bust || null),
         waist: waist ? parseFloat(waist) : (aiAnalysis?.estimated_measurements?.waist || null),
         hips: hips ? parseFloat(hips) : (aiAnalysis?.estimated_measurements?.hips || null),
         body_shape: aiAnalysis?.body_shape || null,
         measurements_json: aiAnalysis ? JSON.stringify(aiAnalysis) : null,
-      });
+      }).select().single();
 
       if (dbError) throw dbError;
+
+      // Generate 3D Avatar if requested
+      if (generateAvatar && bodyScanData) {
+        toast({
+          title: "Generating 3D Avatar...",
+          description: "Creating your hyper-realistic avatar",
+        });
+
+        const { data: avatarData, error: avatarError } = await supabase.functions.invoke(
+          "generate-avatar",
+          {
+            body: {
+              frontImageUrl: publicFrontUrl,
+              sideImageUrl: publicSideUrl,
+              faceImageUrl: facePublicUrl,
+              bodyScanId: bodyScanData.id,
+            },
+          }
+        );
+
+        if (avatarError) {
+          console.error("Avatar generation error:", avatarError);
+          toast({
+            title: "Avatar Generation Failed",
+            description: "Body scan saved, but avatar creation encountered an error",
+            variant: "destructive",
+          });
+        } else if (avatarData?.success) {
+          toast({
+            title: "Avatar Generated!",
+            description: "Your 3D avatar is ready",
+          });
+        }
+      }
 
       setStep("complete");
       
@@ -179,18 +230,24 @@ const BodyScan = () => {
               </div>
 
               <div className="bg-muted rounded-xl p-8 space-y-6">
-                <div className="flex justify-center gap-8">
+                <div className="flex justify-center gap-4">
                   <div className="text-center space-y-2">
-                    <div className="w-24 h-32 bg-background rounded-lg flex items-center justify-center mx-auto">
-                      <div className="text-4xl">🧍</div>
+                    <div className="w-20 h-28 bg-background rounded-lg flex items-center justify-center mx-auto">
+                      <div className="text-3xl">🧍</div>
                     </div>
-                    <p className="text-sm font-medium">Front</p>
+                    <p className="text-xs font-medium">Front</p>
                   </div>
                   <div className="text-center space-y-2">
-                    <div className="w-24 h-32 bg-background rounded-lg flex items-center justify-center mx-auto">
-                      <div className="text-4xl">🚶</div>
+                    <div className="w-20 h-28 bg-background rounded-lg flex items-center justify-center mx-auto">
+                      <div className="text-3xl">🚶</div>
                     </div>
-                    <p className="text-sm font-medium">Side</p>
+                    <p className="text-xs font-medium">Side</p>
+                  </div>
+                  <div className="text-center space-y-2">
+                    <div className="w-20 h-28 bg-background rounded-lg flex items-center justify-center mx-auto">
+                      <div className="text-3xl">😊</div>
+                    </div>
+                    <p className="text-xs font-medium">Face</p>
                   </div>
                 </div>
               </div>
@@ -215,6 +272,17 @@ const BodyScan = () => {
                     <p className="font-medium">Side profile photo</p>
                     <p className="text-sm text-muted-foreground">
                       Turn to the side, maintain posture
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-xs font-semibold text-primary">3</span>
+                  </div>
+                  <div>
+                    <p className="font-medium">Face close-up</p>
+                    <p className="text-sm text-muted-foreground">
+                      Clear photo of your face for avatar generation
                     </p>
                   </div>
                 </div>
@@ -333,6 +401,54 @@ const BodyScan = () => {
           </Card>
         )}
 
+        {step === "face" && (
+          <Card>
+            <CardContent className="p-8 space-y-6">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Check className="h-8 w-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-display font-bold mb-2">
+                  Face Close-Up
+                </h2>
+                <p className="text-muted-foreground">
+                  Take a clear photo of your face for hyper-realistic avatar
+                </p>
+              </div>
+
+              <div className="bg-muted rounded-xl p-12 flex items-center justify-center">
+                <div className="text-6xl">😊</div>
+              </div>
+
+              <div className="space-y-3">
+                <label htmlFor="face-photo">
+                  <Button size="lg" className="w-full" asChild>
+                    <span>
+                      <Camera className="mr-2 h-5 w-5" />
+                      Take Face Photo
+                    </span>
+                  </Button>
+                </label>
+                <input
+                  id="face-photo"
+                  type="file"
+                  accept="image/*"
+                  capture="user"
+                  className="hidden"
+                  onChange={(e) => handlePhotoCapture(e, "face")}
+                />
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setStep("side")}
+                >
+                  Retake Side Photo
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {step === "measurements" && (
           <Card>
             <CardContent className="p-8 space-y-6">
@@ -405,19 +521,45 @@ const BodyScan = () => {
               <div className="space-y-3">
                 <Button
                   size="lg"
-                  className="w-full"
-                  onClick={() => handleSaveScan(frontPhoto!, sidePhoto!, true)}
+                  className="w-full bg-accent hover:bg-accent/90"
+                  onClick={() => handleSaveScan(frontPhoto!, sidePhoto!, facePhoto!, true, true)}
                 >
-                  Use AI Estimation
+                  Generate 3D Avatar (AI)
+                </Button>
+                <Button
+                  size="lg"
+                  className="w-full"
+                  onClick={() => handleSaveScan(frontPhoto!, sidePhoto!, facePhoto!, true, false)}
+                >
+                  Use AI Estimation Only
                 </Button>
                 <Button
                   variant="outline"
                   size="lg"
                   className="w-full"
-                  onClick={() => handleSaveScan(frontPhoto!, sidePhoto!, false)}
+                  onClick={() => handleSaveScan(frontPhoto!, sidePhoto!, facePhoto!, false, false)}
                 >
                   Enter Manually
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {step === "avatar-processing" && (
+          <Card>
+            <CardContent className="p-12 text-center space-y-4">
+              <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto animate-pulse">
+                <Camera className="h-8 w-8 text-accent" />
+              </div>
+              <h2 className="text-2xl font-display font-bold">
+                Creating your 3D Avatar...
+              </h2>
+              <p className="text-muted-foreground">
+                AI is analyzing your features and generating a hyper-realistic avatar
+              </p>
+              <div className="text-sm text-muted-foreground pt-4">
+                This may take up to 60 seconds
               </div>
             </CardContent>
           </Card>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { User, LogOut, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AvatarViewer } from "@/components/AvatarViewer";
 
 interface Profile {
   full_name: string;
@@ -96,6 +97,8 @@ const Profile = () => {
             </div>
           </CardContent>
         </Card>
+
+        <AvatarViewer className="mb-6" />
 
         <div className="space-y-3">
           <Button variant="outline" className="w-full justify-start">
