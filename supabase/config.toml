@@ -1,5 +1,8 @@
 project_id = "ssuingprkeergtpxtsji"
 
+[functions.accept-friend-request]
+verify_jwt = true
+
 [functions.analyze-closet-item]
 verify_jwt = true
 
