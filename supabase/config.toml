@@ -14,3 +14,6 @@ verify_jwt = true
 
 [functions.generate-avatar]
 verify_jwt = true
+
+[functions.update-wear-count]
+verify_jwt = true

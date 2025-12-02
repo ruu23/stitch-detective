@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -12,149 +13,152 @@ serve(async (req) => {
 
   try {
     const { imageUrl } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    
+    if (!imageUrl) {
+      return new Response(
+        JSON.stringify({ error: 'Missing imageUrl parameter' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
-    console.log("Analyzing image:", imageUrl);
+    const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+    
+    if (!ANTHROPIC_API_KEY) {
+      console.error('ANTHROPIC_API_KEY is not set');
+      return new Response(
+        JSON.stringify({ error: 'API key not configured' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
+    console.log('Analyzing clothing item with Anthropic Claude...');
+    
+    const analyzeClothingPrompt = `Analyze this clothing item and return ONLY a valid JSON object (no markdown, no backticks) with these exact fields:
+
+{
+  "item_type": "top/bottom/dress/outerwear/shoes/accessory",
+  "category": "specific category like blazer, jeans, midi dress, sneakers, handbag",
+  "color_primary": "main color name",
+  "color_secondary": "secondary color or null",
+  "pattern": "solid/striped/floral/geometric/abstract/none",
+  "style": "casual/formal/business/evening/sporty",
+  "season": ["spring", "summer", "fall", "winter"],
+  "suitable_occasions": ["work", "casual", "evening", "weekend", "formal"],
+  "formality_level": 1-5,
+  "brand": "estimated brand or null",
+  "name": "descriptive name for the item",
+  "tags": ["descriptive", "style", "tags"],
+  "hijab_friendly": true/false,
+  "modest_coverage": "high/medium/low"
+}
+
+Be accurate and specific. For hijab_friendly, return true if the item provides modest coverage (long sleeves, high neck, loose fit) or false if it's revealing.`;
+    
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 1024,
         messages: [
           {
-            role: "system",
-            content: `You are a fashion expert AI analyzing clothing items with special attention to modest and hijab-friendly fashion. Analyze the image and provide a detailed JSON response.
-
-Be specific and accurate. Consider coverage level, formality, and whether items are suitable for modest dressing.`
-          },
-          {
-            role: "user",
+            role: 'user',
             content: [
               {
-                type: "text",
-                text: "Please analyze this clothing item in detail."
-              },
-              {
-                type: "image_url",
-                image_url: {
+                type: 'image',
+                source: {
+                  type: 'url',
                   url: imageUrl
                 }
+              },
+              {
+                type: 'text',
+                text: analyzeClothingPrompt
               }
             ]
           }
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "analyze_clothing",
-              description: "Analyze clothing item and return structured data",
-              parameters: {
-                type: "object",
-                properties: {
-                  item_type: {
-                    type: "string",
-                    enum: ["top", "bottom", "dress", "outerwear", "shoes", "accessory"]
-                  },
-                  category: { 
-                    type: "string",
-                    description: "Specific category like blazer, jeans, midi dress"
-                  },
-                  color_primary: { type: "string" },
-                  color_secondary: { type: "string" },
-                  pattern: {
-                    type: "string",
-                    enum: ["solid", "striped", "floral", "geometric", "abstract", "none"]
-                  },
-                  style: {
-                    type: "string",
-                    enum: ["casual", "formal", "business", "evening", "sporty"]
-                  },
-                  season: {
-                    type: "array",
-                    items: {
-                      type: "string",
-                      enum: ["spring", "summer", "fall", "winter"]
-                    }
-                  },
-                  suitable_occasions: {
-                    type: "array",
-                    items: { type: "string" }
-                  },
-                  formality_level: {
-                    type: "integer",
-                    minimum: 1,
-                    maximum: 5
-                  },
-                  tags: {
-                    type: "array",
-                    items: { type: "string" }
-                  },
-                  hijab_friendly: { type: "boolean" },
-                  modest_coverage: {
-                    type: "string",
-                    enum: ["high", "medium", "low"]
-                  },
-                  brand: { type: "string" },
-                  name: { type: "string" }
-                },
-                required: ["item_type", "category", "color_primary", "pattern", "style", "season", "suitable_occasions", "formality_level", "tags", "hijab_friendly", "modest_coverage", "name"],
-                additionalProperties: false
-              }
-            }
-          }
-        ],
-        tool_choice: { type: "function", function: { name: "analyze_clothing" } }
+        ]
       }),
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Anthropic API error:', response.status, errorText);
+      
       if (response.status === 429) {
         return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add credits to your workspace." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const errorText = await response.text();
-      console.error("AI API error:", response.status, errorText);
-      throw new Error("AI analysis failed");
+      
+      return new Response(
+        JSON.stringify({ error: 'Failed to analyze image with AI' }),
+        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-
+    
     const data = await response.json();
-    console.log("AI response:", JSON.stringify(data));
-
-    // Extract the tool call result
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall || toolCall.function?.name !== "analyze_clothing") {
-      throw new Error("Invalid AI response format");
+    console.log('Received response from Anthropic');
+    
+    // Extract the text content from Claude's response
+    const content = data.content?.[0]?.text;
+    
+    if (!content) {
+      console.error('No content in Anthropic response');
+      return new Response(
+        JSON.stringify({ error: 'No content in AI response' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
-
-    const analysis = JSON.parse(toolCall.function.arguments);
-    console.log("Parsed analysis:", analysis);
-
+    
+    console.log('Parsing AI response...');
+    
+    // Parse the JSON response
+    let analysis;
+    try {
+      // Remove markdown code blocks if present
+      const jsonText = content.replace(/```json\n?|\n?```/g, '').trim();
+      analysis = JSON.parse(jsonText);
+    } catch (parseError) {
+      console.error('Failed to parse AI response as JSON:', parseError);
+      console.error('Response content:', content);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Failed to parse AI response',
+          details: content
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    
+    console.log('Successfully analyzed item:', analysis);
+    
     return new Response(
       JSON.stringify({ analysis }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error("Error in analyze-closet-item:", error);
+    console.error('Error in analyze-closet-item:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
