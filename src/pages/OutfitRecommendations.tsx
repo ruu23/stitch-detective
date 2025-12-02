@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Sparkles, ArrowLeft, Loader2 } from "lucide-react";
+import { Sparkles, ArrowLeft, Loader2, Check } from "lucide-react";
 
 const OutfitRecommendations = () => {
   const navigate = useNavigate();
@@ -15,6 +15,7 @@ const OutfitRecommendations = () => {
   const [date, setDate] = useState("");
   const [loading, setLoading] = useState(false);
   const [recommendations, setRecommendations] = useState<any>(null);
+  const [wearingOutfit, setWearingOutfit] = useState<number | null>(null);
 
   const handleGenerate = async () => {
     if (!occasion) {
@@ -63,6 +64,36 @@ const OutfitRecommendations = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleWearOutfit = async (outfitIndex: number, items: any[]) => {
+    setWearingOutfit(outfitIndex);
+    try {
+      const itemIds = items.map(item => item.id);
+      
+      const { data, error } = await supabase.functions.invoke(
+        "update-wear-count",
+        {
+          body: { itemIds },
+        }
+      );
+
+      if (error) throw error;
+
+      toast({
+        title: "Outfit logged!",
+        description: `Updated wear count and cost-per-wear for ${itemIds.length} items`,
+      });
+    } catch (error) {
+      console.error("Error updating wear count:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update wear count",
+        variant: "destructive",
+      });
+    } finally {
+      setWearingOutfit(null);
     }
   };
 
@@ -208,7 +239,7 @@ const OutfitRecommendations = () => {
                     </div>
                   )}
 
-                  {outfit.missing_pieces.length > 0 && (
+                  {outfit.missing_pieces && outfit.missing_pieces.length > 0 && (
                     <div className="bg-muted rounded-lg p-3 space-y-2">
                       <p className="font-medium text-sm">Missing Pieces:</p>
                       <p className="text-sm text-muted-foreground">
@@ -216,6 +247,25 @@ const OutfitRecommendations = () => {
                       </p>
                     </div>
                   )}
+
+                  <Button
+                    onClick={() => handleWearOutfit(index, outfit.items)}
+                    disabled={wearingOutfit === index}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {wearingOutfit === index ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Logging...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="mr-2 h-5 w-5" />
+                        Wear This Outfit
+                      </>
+                    )}
+                  </Button>
                 </CardContent>
               </Card>
             ))}

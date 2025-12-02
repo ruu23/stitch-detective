@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -96,84 +97,80 @@ serve(async (req) => {
       );
     }
 
-    // 5. Use AI to generate outfit combinations
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    // 5. Use Anthropic Claude to generate outfit combinations
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not configured");
 
-    const itemsDescription = filteredItems.map(item => ({
+    const itemsList = filteredItems.map(item => ({
       id: item.id,
-      name: item.name,
+      type: item.category,
       category: item.category,
-      color_primary: item.color_primary,
-      color_secondary: item.color_secondary,
+      color: item.color_primary,
+      secondary_color: item.color_secondary,
       style: item.style,
-      formality_level: item.formality_level,
+      formality: item.formality_level,
       pattern: item.pattern,
       hijab_friendly: item.hijab_friendly,
       modest_coverage: item.modest_coverage
     }));
 
-    const aiPrompt = `You are a professional fashion stylist. Create 5 complete outfit combinations from these closet items for a ${occasion} occasion.
+    const aiPrompt = `You are an expert fashion stylist. Create 3 complete outfit combinations from these wardrobe items for a ${occasion} event.
 
-User Profile:
-- Is veiled: ${profile.is_veiled ? 'Yes' : 'No'}
+AVAILABLE ITEMS:
+${JSON.stringify(itemsList, null, 2)}
+
+CONTEXT:
+- User is ${profile.is_veiled ? 'veiled (wears hijab)' : 'not veiled'}
 - Body shape: ${bodyScan?.body_shape || 'Not specified'}
-- Styling preference: ${profile.styling_preference || 'Not specified'}
+- Lifestyle: ${profile.lifestyle_type || 'Not specified'}
 
-Available items:
-${JSON.stringify(itemsDescription, null, 2)}
+REQUIREMENTS:
+1. Each outfit must be complete (top + bottom OR dress, plus appropriate shoes/accessories if available)
+2. Colors should harmonize
+3. Style should match the occasion formality
+4. ${profile.is_veiled ? 'Ensure modest coverage for all items' : 'Consider flattering silhouettes'}
+5. Create variety (don't repeat items across outfits if possible)
 
-Requirements:
-1. Each outfit must include appropriate pieces for the occasion
-2. Colors should harmonize well together
-3. Style should be cohesive
-4. ${profile.is_veiled ? 'All items must be hijab-friendly with modest coverage' : 'Consider body shape flattering silhouettes'}
-5. Mix formal levels appropriately for the occasion
+Return ONLY a JSON array (no markdown, no backticks):
+[
+  {
+    "outfit_name": "Professional Elegance",
+    "items": ["item_id_1", "item_id_2", "item_id_3"],
+    "styling_notes": "Why this outfit works",
+    "color_harmony": "How colors work together",
+    "occasion_fit": "Why it's perfect for ${occasion}"
+  }
+]`;
 
-Return your response in this EXACT JSON format (no markdown, no extra text):
-{
-  "outfits": [
-    {
-      "outfit_name": "Elegant Evening Look",
-      "items": ["<item_id>", "<item_id>", "<item_id>"],
-      "reasoning": "Why this combination works",
-      "color_harmony_score": 0.95,
-      "style_cohesion_score": 0.90,
-      "occasion_fit_score": 0.85,
-      "missing_pieces": ["Optional: scarf", "Optional: belt"],
-      "styling_tips": ["Tip 1", "Tip 2"]
-    }
-  ]
-}`;
+    console.log("Calling Anthropic Claude for outfit combinations...");
 
-    console.log("Calling AI for outfit combinations...");
-
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
+    const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 2048,
         messages: [
           {
-            role: "user",
+            role: 'user',
             content: aiPrompt
           }
-        ],
-        temperature: 0.7,
+        ]
       }),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error("AI error:", errorText);
+      console.error("Anthropic AI error:", errorText);
       throw new Error(`AI request failed: ${aiResponse.status}`);
     }
 
     const aiData = await aiResponse.json();
-    const aiContent = aiData.choices?.[0]?.message?.content;
+    const aiContent = aiData.content?.[0]?.text;
 
     if (!aiContent) throw new Error("No AI response received");
 
@@ -190,7 +187,7 @@ Return your response in this EXACT JSON format (no markdown, no extra text):
     }
 
     // Enrich recommendations with full item details
-    const enrichedOutfits = recommendations.outfits.map((outfit: any) => {
+    const enrichedOutfits = recommendations.map((outfit: any) => {
       const outfitItems = outfit.items.map((itemId: string) => 
         filteredItems.find(item => item.id === itemId)
       ).filter(Boolean);
@@ -198,8 +195,7 @@ Return your response in this EXACT JSON format (no markdown, no extra text):
       return {
         ...outfit,
         items: outfitItems,
-        total_items: outfitItems.length,
-        is_complete: outfit.missing_pieces.length === 0,
+        total_items: outfitItems.length
       };
     });
 

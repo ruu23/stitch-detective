@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -12,100 +13,152 @@ serve(async (req) => {
 
   try {
     const { frontImageUrl, sideImageUrl } = await req.json();
-
+    
     if (!frontImageUrl || !sideImageUrl) {
-      throw new Error("Both front and side image URLs are required");
+      return new Response(
+        JSON.stringify({ error: 'Missing required image URLs' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+    
+    if (!ANTHROPIC_API_KEY) {
+      console.error('ANTHROPIC_API_KEY is not set');
+      return new Response(
+        JSON.stringify({ error: 'API key not configured' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
-    console.log("Analyzing body shape with AI...");
+    console.log('Analyzing body shape with Anthropic Claude...');
+    
+    const analyzeBodyPrompt = `Analyze these body images (front and side view) and provide detailed body shape analysis.
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Analyze these body photos and provide detailed measurements and body shape analysis.
+Return ONLY a valid JSON object (no markdown, no backticks) with these measurements and characteristics:
 
-Front view photo and side view photo are provided.
-
-Provide your analysis in this EXACT JSON format (no other text):
 {
   "body_shape": "hourglass/pear/apple/rectangle/inverted_triangle",
-  "estimated_measurements": {
-    "bust": <number in cm>,
-    "waist": <number in cm>,
-    "hips": <number in cm>,
-    "height": <number in cm>
+  "height_cm": estimated height in centimeters,
+  "measurements": {
+    "bust": estimated bust measurement in cm,
+    "waist": estimated waist measurement in cm,
+    "hips": estimated hip measurement in cm,
+    "shoulder_width": estimated shoulder width in cm,
+    "inseam": estimated inseam length in cm
   },
+  "skin_tone_hex": "#RRGGBB color hex code",
+  "skin_undertone": "warm/cool/neutral",
+  "hair_color": "description of hair color",
   "proportions": {
-    "shoulder_to_waist": "short/average/long",
-    "leg_length": "short/average/long"
+    "torso_to_leg_ratio": "short/average/long",
+    "shoulder_to_hip_ratio": description
   },
-  "confidence_level": <number between 0 and 1>,
-  "recommendations": ["style tip 1", "style tip 2", "style tip 3"]
+  "recommendations": {
+    "best_fits": ["style recommendations based on body shape"],
+    "styling_tips": ["specific tips for this body type"]
+  }
 }
 
-Be as accurate as possible with measurements. Return ONLY the JSON, no markdown or other formatting.`
-              },
+Be as accurate as possible with measurements and provide helpful styling advice.`;
+    
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 2048,
+        messages: [
+          {
+            role: 'user',
+            content: [
               {
-                type: "image_url",
-                image_url: {
+                type: 'image',
+                source: {
+                  type: 'url',
                   url: frontImageUrl
                 }
               },
               {
-                type: "image_url",
-                image_url: {
+                type: 'image',
+                source: {
+                  type: 'url',
                   url: sideImageUrl
                 }
+              },
+              {
+                type: 'text',
+                text: analyzeBodyPrompt
               }
             ]
           }
-        ],
-        temperature: 0.3,
+        ]
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI Gateway error:", response.status, errorText);
-      throw new Error(`AI Gateway error: ${response.status}`);
+      console.error('Anthropic API error:', response.status, errorText);
+      
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ error: 'Failed to analyze body shape with AI' }),
+        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-
+    
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-
+    console.log('Received response from Anthropic');
+    
+    const content = data.content?.[0]?.text;
+    
     if (!content) {
-      throw new Error("No content returned from AI");
+      console.error('No content in Anthropic response');
+      return new Response(
+        JSON.stringify({ error: 'No content in AI response' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
-
-    console.log("AI Response:", content);
-
-    // Parse the JSON response
+    
     let analysis;
     try {
-      // Remove markdown code blocks if present
-      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
-      analysis = JSON.parse(cleanContent);
+      const jsonText = content.replace(/```json\n?|\n?```/g, '').trim();
+      analysis = JSON.parse(jsonText);
     } catch (parseError) {
-      console.error("Failed to parse AI response:", content);
-      throw new Error("Failed to parse AI analysis response");
+      console.error('Failed to parse AI response:', content);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Failed to parse AI response',
+          details: content
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
-
+    
+    console.log('Successfully analyzed body shape:', analysis);
+    
     return new Response(
       JSON.stringify(analysis),
       {
