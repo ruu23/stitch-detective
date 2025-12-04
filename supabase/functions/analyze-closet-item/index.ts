@@ -72,8 +72,17 @@ Be accurate and specific. For hijab_friendly, return true if the item provides m
     }
     
     const imageBuffer = await imageResponse.arrayBuffer();
-    const base64Image = btoa(String.fromCharCode(...new Uint8Array(imageBuffer)));
     const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+    
+    // Convert to base64 in chunks to avoid stack overflow on large images
+    const uint8Array = new Uint8Array(imageBuffer);
+    let base64Image = '';
+    const chunkSize = 32768; // Process 32KB at a time
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, i + chunkSize);
+      base64Image += String.fromCharCode.apply(null, chunk as unknown as number[]);
+    }
+    base64Image = btoa(base64Image);
     
     console.log('Image fetched, size:', imageBuffer.byteLength, 'type:', contentType);
 
