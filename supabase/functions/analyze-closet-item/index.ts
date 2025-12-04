@@ -15,6 +15,7 @@ serve(async (req) => {
     const { imageUrl } = await req.json();
     
     if (!imageUrl) {
+      console.error('Missing imageUrl parameter');
       return new Response(
         JSON.stringify({ error: 'Missing imageUrl parameter' }),
         { 
@@ -24,12 +25,13 @@ serve(async (req) => {
       );
     }
 
-    const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+    // Use Lovable AI Gateway (pre-configured, no API key needed from user)
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
-    if (!ANTHROPIC_API_KEY) {
-      console.error('ANTHROPIC_API_KEY is not set');
+    if (!LOVABLE_API_KEY) {
+      console.error('LOVABLE_API_KEY is not set');
       return new Response(
-        JSON.stringify({ error: 'API key not configured' }),
+        JSON.stringify({ error: 'AI service not configured' }),
         { 
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -37,19 +39,20 @@ serve(async (req) => {
       );
     }
 
-    console.log('Analyzing clothing item with Anthropic Claude...');
+    console.log('Analyzing clothing item with Lovable AI...');
+    console.log('Image URL:', imageUrl);
     
-    const analyzeClothingPrompt = `Analyze this clothing item and return ONLY a valid JSON object (no markdown, no backticks) with these exact fields:
+    const analyzeClothingPrompt = `Analyze this clothing item image and return ONLY a valid JSON object (no markdown, no backticks, no explanation) with these exact fields:
 
 {
-  "item_type": "top/bottom/dress/outerwear/shoes/accessory",
+  "item_type": "top/bottom/dress/outerwear/shoes/accessory/bag",
   "category": "specific category like blazer, jeans, midi dress, sneakers, handbag",
   "color_primary": "main color name",
   "color_secondary": "secondary color or null",
-  "pattern": "solid/striped/floral/geometric/abstract/none",
-  "style": "casual/formal/business/evening/sporty",
+  "pattern": "solid/striped/floral/geometric/abstract/plaid/none",
+  "style": "casual/formal/business/evening/sporty/bohemian",
   "season": ["spring", "summer", "fall", "winter"],
-  "suitable_occasions": ["work", "casual", "evening", "weekend", "formal"],
+  "suitable_occasions": ["work", "casual", "evening", "weekend", "formal", "party"],
   "formality_level": 1-5,
   "brand": "estimated brand or null",
   "name": "descriptive name for the item",
@@ -58,54 +61,24 @@ serve(async (req) => {
   "modest_coverage": "high/medium/low"
 }
 
-Be accurate and specific. For hijab_friendly, return true if the item provides modest coverage (long sleeves, high neck, loose fit) or false if it's revealing.`;
-    
-    // Fetch the image and convert to base64
-    console.log('Fetching image from URL:', imageUrl);
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      console.error('Failed to fetch image:', imageResponse.status);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch image' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    const imageBuffer = await imageResponse.arrayBuffer();
-    const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
-    
-    // Convert to base64 in chunks to avoid stack overflow on large images
-    const uint8Array = new Uint8Array(imageBuffer);
-    let base64Image = '';
-    const chunkSize = 32768; // Process 32KB at a time
-    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.subarray(i, i + chunkSize);
-      base64Image += String.fromCharCode.apply(null, chunk as unknown as number[]);
-    }
-    base64Image = btoa(base64Image);
-    
-    console.log('Image fetched, size:', imageBuffer.byteLength, 'type:', contentType);
+Be accurate and specific. For hijab_friendly, return true if the item provides modest coverage (long sleeves, high neck, loose fit) or false if it's revealing. Return ONLY the JSON.`;
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20250514',
-        max_tokens: 1024,
+        model: 'google/gemini-2.5-flash',
         messages: [
           {
             role: 'user',
             content: [
               {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: contentType,
-                  data: base64Image
+                type: 'image_url',
+                image_url: {
+                  url: imageUrl
                 }
               },
               {
@@ -114,13 +87,14 @@ Be accurate and specific. For hijab_friendly, return true if the item provides m
               }
             ]
           }
-        ]
+        ],
+        max_tokens: 1024,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Anthropic API error:', response.status, errorText);
+      console.error('Lovable AI error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -129,20 +103,27 @@ Be accurate and specific. For hijab_friendly, return true if the item provides m
         );
       }
       
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: 'AI credits exhausted. Please add credits to continue.' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       return new Response(
-        JSON.stringify({ error: 'Failed to analyze image with AI' }),
+        JSON.stringify({ error: 'Failed to analyze image with AI', details: errorText }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
     const data = await response.json();
-    console.log('Received response from Anthropic');
+    console.log('Received response from Lovable AI');
     
-    // Extract the text content from Claude's response
-    const content = data.content?.[0]?.text;
+    // Extract the text content from the response
+    const content = data.choices?.[0]?.message?.content;
     
     if (!content) {
-      console.error('No content in Anthropic response');
+      console.error('No content in AI response:', JSON.stringify(data));
       return new Response(
         JSON.stringify({ error: 'No content in AI response' }),
         { 
@@ -152,13 +133,18 @@ Be accurate and specific. For hijab_friendly, return true if the item provides m
       );
     }
     
-    console.log('Parsing AI response...');
+    console.log('Parsing AI response:', content.substring(0, 200));
     
     // Parse the JSON response
     let analysis;
     try {
       // Remove markdown code blocks if present
-      const jsonText = content.replace(/```json\n?|\n?```/g, '').trim();
+      let jsonText = content.replace(/```json\n?|\n?```/g, '').trim();
+      // Also try to extract JSON if there's extra text
+      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonText = jsonMatch[0];
+      }
       analysis = JSON.parse(jsonText);
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', parseError);
@@ -166,7 +152,7 @@ Be accurate and specific. For hijab_friendly, return true if the item provides m
       return new Response(
         JSON.stringify({ 
           error: 'Failed to parse AI response',
-          details: content
+          details: content.substring(0, 500)
         }),
         { 
           status: 500,
@@ -175,7 +161,20 @@ Be accurate and specific. For hijab_friendly, return true if the item provides m
       );
     }
     
-    console.log('Successfully analyzed item:', analysis);
+    // Map item_type to valid category enum
+    const categoryMap: Record<string, string> = {
+      'top': 'tops',
+      'bottom': 'bottoms',
+      'dress': 'dresses',
+      'outerwear': 'outerwear',
+      'shoes': 'shoes',
+      'accessory': 'accessories',
+      'bag': 'bags',
+    };
+    
+    analysis.category = categoryMap[analysis.item_type] || 'accessories';
+    
+    console.log('Successfully analyzed item:', analysis.name);
     
     return new Response(
       JSON.stringify({ analysis }),

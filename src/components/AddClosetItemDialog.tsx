@@ -194,6 +194,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         .getPublicUrl(uploadData.path);
 
       // Send to AI Analysis
+      console.log("Invoking AI analysis with URL:", publicUrl);
       const { data: analysisData, error: analysisError } = await supabase.functions.invoke(
         "analyze-closet-item",
         {
@@ -201,7 +202,17 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         }
       );
 
-      if (analysisError) throw analysisError;
+      console.log("Analysis response:", analysisData, "Error:", analysisError);
+
+      if (analysisError) {
+        console.error("Analysis error details:", analysisError);
+        throw new Error(analysisError.message || "AI analysis failed");
+      }
+
+      if (!analysisData?.analysis) {
+        console.error("Invalid analysis data:", analysisData);
+        throw new Error(analysisData?.error || "No analysis data received");
+      }
 
       setAiAnalysis({
         ...analysisData.analysis,
@@ -223,9 +234,14 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       });
     } catch (error) {
       console.error("Error processing image:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to process image";
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to process image",
+        description: errorMessage.includes("Rate limit") 
+          ? "Too many requests. Please wait a moment and try again."
+          : errorMessage.includes("credits")
+          ? "AI credits exhausted. Please try again later."
+          : errorMessage,
         variant: "destructive",
       });
       handleReset();
