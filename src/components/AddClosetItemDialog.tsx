@@ -57,13 +57,43 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       return;
     }
 
-    // Create preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setSelectedImage(e.target?.result as string);
-      setStep("crop");
-    };
-    reader.readAsDataURL(file);
+    try {
+      setLoading(true);
+      
+      // Compress image early for better preview performance
+      const compressedFile = await imageCompression(file, {
+        maxSizeMB: 4, // Allow larger size for better quality during cropping
+        maxWidthOrHeight: 2048,
+        useWebWorker: true,
+      });
+      
+      console.log(`Compressed from ${(file.size / 1024 / 1024).toFixed(2)}MB to ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+
+      // Create preview from compressed file
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setSelectedImage(e.target?.result as string);
+        setStep("crop");
+        setLoading(false);
+      };
+      reader.onerror = () => {
+        toast({
+          title: "Error",
+          description: "Failed to read image file",
+          variant: "destructive",
+        });
+        setLoading(false);
+      };
+      reader.readAsDataURL(compressedFile);
+    } catch (error) {
+      console.error("Compression error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to process image. Try a smaller file.",
+        variant: "destructive",
+      });
+      setLoading(false);
+    }
   };
 
   const getCroppedImage = useCallback(async (): Promise<Blob> => {
@@ -274,17 +304,27 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
               variant="outline"
               className="h-32 flex flex-col gap-2"
               onClick={() => cameraInputRef.current?.click()}
+              disabled={loading}
             >
-              <Camera className="h-8 w-8" />
-              <span>Take Photo</span>
+              {loading ? (
+                <Loader2 className="h-8 w-8 animate-spin" />
+              ) : (
+                <Camera className="h-8 w-8" />
+              )}
+              <span>{loading ? "Processing..." : "Take Photo"}</span>
             </Button>
             <Button
               variant="outline"
               className="h-32 flex flex-col gap-2"
               onClick={() => fileInputRef.current?.click()}
+              disabled={loading}
             >
-              <Upload className="h-8 w-8" />
-              <span>Upload Image</span>
+              {loading ? (
+                <Loader2 className="h-8 w-8 animate-spin" />
+              ) : (
+                <Upload className="h-8 w-8" />
+              )}
+              <span>{loading ? "Processing..." : "Upload Image"}</span>
             </Button>
             <input
               ref={cameraInputRef}
