@@ -72,22 +72,45 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
     }
 
     const image = imageRef.current;
-    const canvas = document.createElement("canvas");
-    const scaleX = image.naturalWidth / image.width;
-    const scaleY = image.naturalHeight / image.height;
+    
+    // Wait for image to be fully loaded
+    if (!image.complete || image.naturalWidth === 0) {
+      await new Promise<void>((resolve) => {
+        image.onload = () => resolve();
+        // If already loaded, resolve immediately
+        if (image.complete && image.naturalWidth > 0) resolve();
+      });
+    }
 
-    canvas.width = (crop.width * scaleX * image.naturalWidth) / 100;
-    canvas.height = (crop.height * scaleY * image.naturalHeight) / 100;
+    const canvas = document.createElement("canvas");
+    
+    // Calculate crop dimensions
+    const cropX = (crop.x * image.naturalWidth) / 100;
+    const cropY = (crop.y * image.naturalHeight) / 100;
+    const cropWidth = (crop.width * image.naturalWidth) / 100;
+    const cropHeight = (crop.height * image.naturalHeight) / 100;
+
+    // Validate dimensions
+    if (cropWidth <= 0 || cropHeight <= 0) {
+      throw new Error("Invalid crop dimensions");
+    }
+
+    // Limit canvas size to prevent memory issues
+    const maxSize = 2048;
+    const scale = Math.min(1, maxSize / Math.max(cropWidth, cropHeight));
+    
+    canvas.width = Math.round(cropWidth * scale);
+    canvas.height = Math.round(cropHeight * scale);
 
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Failed to get canvas context");
 
     ctx.drawImage(
       image,
-      (crop.x * image.naturalWidth) / 100,
-      (crop.y * image.naturalHeight) / 100,
-      (crop.width * image.naturalWidth) / 100,
-      (crop.height * image.naturalHeight) / 100,
+      cropX,
+      cropY,
+      cropWidth,
+      cropHeight,
       0,
       0,
       canvas.width,
@@ -98,10 +121,10 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       canvas.toBlob(
         (blob) => {
           if (blob) resolve(blob);
-          else reject(new Error("Canvas to Blob conversion failed"));
+          else reject(new Error("Canvas to Blob conversion failed - try a smaller image"));
         },
         "image/jpeg",
-        0.95
+        0.9
       );
     });
   }, [crop, selectedImage]);
