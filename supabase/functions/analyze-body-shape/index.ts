@@ -38,6 +38,22 @@ serve(async (req) => {
     }
 
     console.log('Analyzing body shape with Anthropic Claude...');
+
+    // Fetch and convert images to base64
+    const fetchAndConvert = async (url: string) => {
+      console.log('Fetching image:', url);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+      const buffer = await response.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+      const mediaType = response.headers.get('content-type') || 'image/jpeg';
+      return { base64, mediaType };
+    };
+
+    const [frontImage, sideImage] = await Promise.all([
+      fetchAndConvert(frontImageUrl),
+      fetchAndConvert(sideImageUrl)
+    ]);
     
     const analyzeBodyPrompt = `Analyze these body images (front and side view) and provide detailed body shape analysis.
 
@@ -76,7 +92,7 @@ Be as accurate as possible with measurements and provide helpful styling advice.
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-5-20250514',
         max_tokens: 2048,
         messages: [
           {
@@ -85,15 +101,17 @@ Be as accurate as possible with measurements and provide helpful styling advice.
               {
                 type: 'image',
                 source: {
-                  type: 'url',
-                  url: frontImageUrl
+                  type: 'base64',
+                  media_type: frontImage.mediaType,
+                  data: frontImage.base64
                 }
               },
               {
                 type: 'image',
                 source: {
-                  type: 'url',
-                  url: sideImageUrl
+                  type: 'base64',
+                  media_type: sideImage.mediaType,
+                  data: sideImage.base64
                 }
               },
               {

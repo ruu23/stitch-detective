@@ -60,6 +60,23 @@ serve(async (req) => {
 
 Be accurate and specific. For hijab_friendly, return true if the item provides modest coverage (long sleeves, high neck, loose fit) or false if it's revealing.`;
     
+    // Fetch the image and convert to base64
+    console.log('Fetching image from URL:', imageUrl);
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) {
+      console.error('Failed to fetch image:', imageResponse.status);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch image' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const base64Image = btoa(String.fromCharCode(...new Uint8Array(imageBuffer)));
+    const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+    
+    console.log('Image fetched, size:', imageBuffer.byteLength, 'type:', contentType);
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -68,7 +85,7 @@ Be accurate and specific. For hijab_friendly, return true if the item provides m
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-5-20250514',
         max_tokens: 1024,
         messages: [
           {
@@ -77,8 +94,9 @@ Be accurate and specific. For hijab_friendly, return true if the item provides m
               {
                 type: 'image',
                 source: {
-                  type: 'url',
-                  url: imageUrl
+                  type: 'base64',
+                  media_type: contentType,
+                  data: base64Image
                 }
               },
               {

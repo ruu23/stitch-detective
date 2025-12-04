@@ -152,7 +152,7 @@ Return ONLY a JSON array (no markdown, no backticks):
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-5-20250514',
         max_tokens: 2048,
         messages: [
           {
