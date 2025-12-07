@@ -112,50 +112,67 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       });
     }
 
-    const canvas = document.createElement("canvas");
-    
-    // Calculate crop dimensions
-    const cropX = (crop.x * image.naturalWidth) / 100;
-    const cropY = (crop.y * image.naturalHeight) / 100;
-    const cropWidth = (crop.width * image.naturalWidth) / 100;
-    const cropHeight = (crop.height * image.naturalHeight) / 100;
-
-    // Validate dimensions
-    if (cropWidth <= 0 || cropHeight <= 0) {
-      throw new Error("Invalid crop dimensions");
-    }
-
-    // Limit canvas size to prevent memory issues
-    const maxSize = 2048;
-    const scale = Math.min(1, maxSize / Math.max(cropWidth, cropHeight));
-    
-    canvas.width = Math.round(cropWidth * scale);
-    canvas.height = Math.round(cropHeight * scale);
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Failed to get canvas context");
-
-    ctx.drawImage(
-      image,
-      cropX,
-      cropY,
-      cropWidth,
-      cropHeight,
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
-
     return new Promise((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error("Canvas to Blob conversion failed - try a smaller image"));
-        },
-        "image/jpeg",
-        0.9
-      );
+      try {
+        const canvas = document.createElement("canvas");
+        
+        // Calculate crop dimensions
+        const cropX = (crop.x * image.naturalWidth) / 100;
+        const cropY = (crop.y * image.naturalHeight) / 100;
+        const cropWidth = (crop.width * image.naturalWidth) / 100;
+        const cropHeight = (crop.height * image.naturalHeight) / 100;
+
+        if (cropWidth <= 0 || cropHeight <= 0) {
+          reject(new Error("Invalid crop dimensions"));
+          return;
+        }
+
+        const maxSize = 1920;
+        const scale = Math.min(1, maxSize / Math.max(cropWidth, cropHeight));
+        
+        canvas.width = Math.round(cropWidth * scale);
+        canvas.height = Math.round(cropHeight * scale);
+
+        const ctx = canvas.getContext("2d", { 
+          alpha: false,
+          willReadFrequently: false 
+        });
+        
+        if (!ctx) {
+          reject(new Error("Failed to get canvas context"));
+          return;
+        }
+
+        // Set white background
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.drawImage(
+          image,
+          cropX,
+          cropY,
+          cropWidth,
+          cropHeight,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob && blob.size > 0) {
+              resolve(blob);
+            } else {
+              reject(new Error("Failed to create image blob"));
+            }
+          },
+          "image/jpeg",
+          0.85
+        );
+      } catch (error) {
+        reject(error);
+      }
     });
   }, [crop, selectedImage]);
 
@@ -301,6 +318,18 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
     }
   };
 
+  const handleCameraClick = () => {
+    if (cameraInputRef.current) {
+      cameraInputRef.current.click();
+    }
+  };
+
+  const handleUploadClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -319,7 +348,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
             <Button
               variant="outline"
               className="h-32 flex flex-col gap-2"
-              onClick={() => cameraInputRef.current?.click()}
+              onClick={handleCameraClick}
               disabled={loading}
             >
               {loading ? (
@@ -332,7 +361,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
             <Button
               variant="outline"
               className="h-32 flex flex-col gap-2"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={handleUploadClick}
               disabled={loading}
             >
               {loading ? (
@@ -347,15 +376,27 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
               type="file"
               accept="image/*"
               capture="environment"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  handleFileSelect(file);
+                }
+                e.target.value = '';
+              }}
             />
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  handleFileSelect(file);
+                }
+                e.target.value = '';
+              }}
             />
           </div>
         )}
