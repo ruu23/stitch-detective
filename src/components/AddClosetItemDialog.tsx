@@ -194,13 +194,38 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
 
     // Convert to blob with multiple fallback strategies
     return new Promise((resolve, reject) => {
+      let resolved = false;
+      
+      const timeoutId = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          reject(new Error("Image processing timeout. Please try again."));
+        }
+      }, 15000);
+
+      const safeResolve = (blob: Blob) => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeoutId);
+          resolve(blob);
+        }
+      };
+
+      const safeReject = (error: Error) => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeoutId);
+          reject(error);
+        }
+      };
+
       // Strategy 1: Try standard toBlob (quality 0.8)
       try {
         canvas.toBlob(
-          async (blob) => {
+          (blob) => {
             if (blob && blob.size > 0) {
               console.log(`Blob created successfully: ${(blob.size / 1024).toFixed(2)}KB`);
-              resolve(blob);
+              safeResolve(blob);
             } else {
               // Strategy 2: Try with lower quality
               console.log("First attempt failed, trying lower quality...");
@@ -208,7 +233,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
                 (blob2) => {
                   if (blob2 && blob2.size > 0) {
                     console.log(`Blob created with lower quality: ${(blob2.size / 1024).toFixed(2)}KB`);
-                    resolve(blob2);
+                    safeResolve(blob2);
                   } else {
                     // Strategy 3: Use dataURL as fallback
                     console.log("toBlob failed, using dataURL fallback...");
@@ -224,10 +249,10 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
                       }
                       const fallbackBlob = new Blob([u8arr], { type: mime });
                       console.log(`Fallback blob created: ${(fallbackBlob.size / 1024).toFixed(2)}KB`);
-                      resolve(fallbackBlob);
+                      safeResolve(fallbackBlob);
                     } catch (fallbackError) {
                       console.error("All strategies failed:", fallbackError);
-                      reject(new Error("Failed to create image blob. Try taking a new photo."));
+                      safeReject(new Error("Failed to create image blob. Try taking a new photo."));
                     }
                   }
                 },
@@ -241,13 +266,8 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         );
       } catch (error) {
         console.error("toBlob error:", error);
-        reject(new Error("Canvas conversion failed. Try a smaller crop area."));
+        safeReject(new Error("Canvas conversion failed. Try a smaller crop area."));
       }
-
-      // Timeout fallback
-      setTimeout(() => {
-        reject(new Error("Image processing timeout. Please try again."));
-      }, 15000);
     });
   }, [crop, selectedImage]);
 
