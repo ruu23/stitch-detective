@@ -103,76 +103,151 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
 
     const image = imageRef.current;
     
-    // Wait for image to be fully loaded
+    // Wait for image to be fully loaded with timeout
     if (!image.complete || image.naturalWidth === 0) {
-      await new Promise<void>((resolve) => {
-        image.onload = () => resolve();
-        // If already loaded, resolve immediately
-        if (image.complete && image.naturalWidth > 0) resolve();
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Image load timeout"));
+        }, 10000);
+        
+        image.onload = () => {
+          clearTimeout(timeout);
+          resolve();
+        };
+        
+        image.onerror = () => {
+          clearTimeout(timeout);
+          reject(new Error("Image failed to load"));
+        };
+        
+        // If already loaded
+        if (image.complete && image.naturalWidth > 0) {
+          clearTimeout(timeout);
+          resolve();
+        }
       });
     }
 
+    // Calculate crop dimensions in pixels
+    const scaleX = image.naturalWidth / 100;
+    const scaleY = image.naturalHeight / 100;
+    
+    const cropX = crop.x * scaleX;
+    const cropY = crop.y * scaleY;
+    const cropWidth = crop.width * scaleX;
+    const cropHeight = crop.height * scaleY;
+
+    // Validate dimensions
+    if (cropWidth <= 0 || cropHeight <= 0) {
+      throw new Error("Invalid crop dimensions");
+    }
+
+    // Create canvas with size limit for mobile (1280px max)
+    const maxDimension = 1280;
+    let finalWidth = cropWidth;
+    let finalHeight = cropHeight;
+    
+    if (cropWidth > maxDimension || cropHeight > maxDimension) {
+      const scale = maxDimension / Math.max(cropWidth, cropHeight);
+      finalWidth = Math.round(cropWidth * scale);
+      finalHeight = Math.round(cropHeight * scale);
+    }
+
+    console.log(`Canvas size: ${finalWidth}x${finalHeight} (original crop: ${cropWidth}x${cropHeight})`);
+
+    // Create canvas
+    const canvas = document.createElement("canvas");
+    canvas.width = finalWidth;
+    canvas.height = finalHeight;
+
+    const ctx = canvas.getContext("2d", {
+      alpha: false,
+      willReadFrequently: false,
+      desynchronized: true // Better performance on mobile
+    });
+
+    if (!ctx) {
+      throw new Error("Failed to get canvas context");
+    }
+
+    // Fill white background (important for JPEG)
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, finalWidth, finalHeight);
+
+    // Draw cropped image
+    try {
+      ctx.drawImage(
+        image,
+        cropX,
+        cropY,
+        cropWidth,
+        cropHeight,
+        0,
+        0,
+        finalWidth,
+        finalHeight
+      );
+    } catch (drawError) {
+      console.error("Canvas draw error:", drawError);
+      throw new Error("Failed to draw image on canvas");
+    }
+
+    // Convert to blob with multiple fallback strategies
     return new Promise((resolve, reject) => {
+      // Strategy 1: Try standard toBlob (quality 0.8)
       try {
-        const canvas = document.createElement("canvas");
-        
-        // Calculate crop dimensions
-        const cropX = (crop.x * image.naturalWidth) / 100;
-        const cropY = (crop.y * image.naturalHeight) / 100;
-        const cropWidth = (crop.width * image.naturalWidth) / 100;
-        const cropHeight = (crop.height * image.naturalHeight) / 100;
-
-        if (cropWidth <= 0 || cropHeight <= 0) {
-          reject(new Error("Invalid crop dimensions"));
-          return;
-        }
-
-        const maxSize = 1920;
-        const scale = Math.min(1, maxSize / Math.max(cropWidth, cropHeight));
-        
-        canvas.width = Math.round(cropWidth * scale);
-        canvas.height = Math.round(cropHeight * scale);
-
-        const ctx = canvas.getContext("2d", { 
-          alpha: false,
-          willReadFrequently: false 
-        });
-        
-        if (!ctx) {
-          reject(new Error("Failed to get canvas context"));
-          return;
-        }
-
-        // Set white background
-        ctx.fillStyle = "#FFFFFF";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        ctx.drawImage(
-          image,
-          cropX,
-          cropY,
-          cropWidth,
-          cropHeight,
-          0,
-          0,
-          canvas.width,
-          canvas.height
-        );
-
         canvas.toBlob(
-          (blob) => {
+          async (blob) => {
             if (blob && blob.size > 0) {
+              console.log(`Blob created successfully: ${(blob.size / 1024).toFixed(2)}KB`);
               resolve(blob);
             } else {
-              reject(new Error("Failed to create image blob"));
+              // Strategy 2: Try with lower quality
+              console.log("First attempt failed, trying lower quality...");
+              canvas.toBlob(
+                (blob2) => {
+                  if (blob2 && blob2.size > 0) {
+                    console.log(`Blob created with lower quality: ${(blob2.size / 1024).toFixed(2)}KB`);
+                    resolve(blob2);
+                  } else {
+                    // Strategy 3: Use dataURL as fallback
+                    console.log("toBlob failed, using dataURL fallback...");
+                    try {
+                      const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+                      const arr = dataUrl.split(',');
+                      const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg";
+                      const bstr = atob(arr[1]);
+                      let n = bstr.length;
+                      const u8arr = new Uint8Array(n);
+                      while (n--) {
+                        u8arr[n] = bstr.charCodeAt(n);
+                      }
+                      const fallbackBlob = new Blob([u8arr], { type: mime });
+                      console.log(`Fallback blob created: ${(fallbackBlob.size / 1024).toFixed(2)}KB`);
+                      resolve(fallbackBlob);
+                    } catch (fallbackError) {
+                      console.error("All strategies failed:", fallbackError);
+                      reject(new Error("Failed to create image blob. Try taking a new photo."));
+                    }
+                  }
+                },
+                "image/jpeg",
+                0.7
+              );
             }
           },
           "image/jpeg",
-          0.85
+          0.8
         );
       } catch (error) {
-        reject(error);
+        console.error("toBlob error:", error);
+        reject(new Error("Canvas conversion failed. Try a smaller crop area."));
       }
+
+      // Timeout fallback
+      setTimeout(() => {
+        reject(new Error("Image processing timeout. Please try again."));
+      }, 15000);
     });
   }, [crop, selectedImage]);
 
@@ -181,21 +256,30 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       setLoading(true);
       setStep("analyzing");
 
-      // Get cropped image
-      const croppedBlob = await getCroppedImage();
+      console.log("Starting crop process...");
 
-      // Compress image (max 2MB)
+      // Get cropped image with mobile optimizations
+      const croppedBlob = await getCroppedImage();
+      console.log(`Cropped blob size: ${(croppedBlob.size / 1024 / 1024).toFixed(2)}MB`);
+
+      // Compress image more aggressively for mobile (max 1MB)
       const compressedFile = await imageCompression(croppedBlob as File, {
-        maxSizeMB: 2,
-        maxWidthOrHeight: 1920,
+        maxSizeMB: 1.0,
+        maxWidthOrHeight: 1280,
         useWebWorker: true,
+        fileType: "image/jpeg",
+        initialQuality: 0.8,
       });
+
+      console.log(`Compressed size: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
 
       // Upload to Supabase Storage
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
       const fileName = `${user.id}/${Date.now()}.jpg`;
+      
+      console.log("Uploading to Supabase...");
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("closet-items")
         .upload(fileName, compressedFile, {
@@ -203,15 +287,22 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
           upsert: false,
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        throw uploadError;
+      }
+
+      console.log("Upload successful:", uploadData.path);
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from("closet-items")
         .getPublicUrl(uploadData.path);
 
+      console.log("Public URL:", publicUrl);
+
       // Send to AI Analysis
-      console.log("Invoking AI analysis with URL:", publicUrl);
+      console.log("Starting AI analysis...");
       const { data: analysisData, error: analysisError } = await supabase.functions.invoke(
         "analyze-closet-item",
         {
@@ -219,10 +310,10 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         }
       );
 
-      console.log("Analysis response:", analysisData, "Error:", analysisError);
+      console.log("Analysis response:", analysisData);
 
       if (analysisError) {
-        console.error("Analysis error details:", analysisError);
+        console.error("Analysis error:", analysisError);
         throw new Error(analysisError.message || "AI analysis failed");
       }
 
@@ -252,13 +343,22 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
     } catch (error) {
       console.error("Error processing image:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to process image";
+      
+      // More user-friendly error messages
+      let displayMessage = errorMessage;
+      if (errorMessage.includes("blob") || errorMessage.includes("canvas")) {
+        displayMessage = "Image processing failed. Please try:\n• Taking a new photo\n• Using a smaller crop area\n• Ensuring good lighting";
+      } else if (errorMessage.includes("timeout")) {
+        displayMessage = "Processing took too long. Please try again with better lighting.";
+      } else if (errorMessage.includes("Rate limit")) {
+        displayMessage = "Too many requests. Please wait a moment and try again.";
+      } else if (errorMessage.includes("credits")) {
+        displayMessage = "AI credits exhausted. Please try again later.";
+      }
+      
       toast({
         title: "Error",
-        description: errorMessage.includes("Rate limit") 
-          ? "Too many requests. Please wait a moment and try again."
-          : errorMessage.includes("credits")
-          ? "AI credits exhausted. Please try again later."
-          : errorMessage,
+        description: displayMessage,
         variant: "destructive",
       });
       handleReset();
@@ -409,15 +509,27 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
                 src={selectedImage}
                 alt="Crop preview"
                 className="max-h-96 w-full object-contain"
+                crossOrigin="anonymous"
+                onLoad={() => console.log("Image loaded for cropping")}
+                onError={(e) => console.error("Image load error:", e)}
               />
             </ReactCrop>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleReset} className="flex-1">
+              <Button variant="outline" onClick={handleReset} className="flex-1" disabled={loading}>
                 Cancel
               </Button>
-              <Button onClick={handleCropComplete} className="flex-1">
-                <Crop className="mr-2 h-4 w-4" />
-                Continue
+              <Button onClick={handleCropComplete} className="flex-1" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Crop className="mr-2 h-4 w-4" />
+                    Continue
+                  </>
+                )}
               </Button>
             </div>
           </div>
