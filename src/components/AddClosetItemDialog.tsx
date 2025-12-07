@@ -29,12 +29,6 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
   });
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
-
-  const addDebug = (message: string) => {
-    console.log(message);
-    setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
-  };
   const [itemDetails, setItemDetails] = useState({
     name: "",
     brand: "",
@@ -108,11 +102,11 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
     }
 
     const image = imageRef.current;
-    addDebug(`Image dimensions: ${image.naturalWidth}x${image.naturalHeight}`);
+    console.log(`Image dimensions: ${image.naturalWidth}x${image.naturalHeight}`);
     
     // Wait for image to be fully loaded
     if (!image.complete || image.naturalWidth === 0) {
-      addDebug("Waiting for image to load...");
+      console.log("Waiting for image to load...");
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Image load timeout"));
@@ -120,7 +114,6 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         
         image.onload = () => {
           clearTimeout(timeout);
-          addDebug("Image loaded successfully");
           resolve();
         };
         
@@ -145,7 +138,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
     const cropWidth = crop.width * scaleX;
     const cropHeight = crop.height * scaleY;
 
-    addDebug(`Crop area: ${Math.round(cropWidth)}x${Math.round(cropHeight)}`);
+    console.log(`Crop area: ${Math.round(cropWidth)}x${Math.round(cropHeight)}`);
 
     if (cropWidth <= 0 || cropHeight <= 0) {
       throw new Error("Invalid crop dimensions");
@@ -162,7 +155,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       finalHeight = Math.round(cropHeight * scale);
     }
 
-    addDebug(`Canvas size: ${finalWidth}x${finalHeight}`);
+    console.log(`Canvas size: ${finalWidth}x${finalHeight}`);
 
     const canvas = document.createElement("canvas");
     canvas.width = finalWidth;
@@ -194,9 +187,9 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         finalWidth,
         finalHeight
       );
-      addDebug("Image drawn on canvas");
+      console.log("Image drawn on canvas");
     } catch (drawError) {
-      addDebug(`Draw error: ${drawError}`);
+      console.error("Draw error:", drawError);
       throw new Error("Failed to draw image");
     }
 
@@ -207,7 +200,6 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       }, 15000);
 
       try {
-        addDebug("Converting to blob...");
         const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
         const arr = dataUrl.split(',');
         const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg";
@@ -219,11 +211,11 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         }
         const blob = new Blob([u8arr], { type: mime });
         clearTimeout(timeout);
-        addDebug(`Blob created: ${(blob.size / 1024).toFixed(2)}KB`);
+        console.log(`Blob created: ${(blob.size / 1024).toFixed(2)}KB`);
         resolve(blob);
       } catch (error) {
         clearTimeout(timeout);
-        addDebug(`Blob conversion failed: ${error}`);
+        console.error("Blob conversion failed:", error);
         reject(new Error("Failed to create image blob"));
       }
     });
@@ -233,14 +225,11 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
     try {
       setLoading(true);
       setStep("analyzing");
-      setDebugInfo([]);
-      addDebug("Starting crop process");
-
       const croppedBlob = await getCroppedImage();
-      addDebug(`Cropped: ${(croppedBlob.size / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`Cropped: ${(croppedBlob.size / 1024 / 1024).toFixed(2)}MB`);
 
       // Compress more aggressively for iPhone
-      addDebug("Compressing image...");
+      
       const compressedFile = await imageCompression(croppedBlob as File, {
         maxSizeMB: 0.8,
         maxWidthOrHeight: 1024,
@@ -249,12 +238,12 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         initialQuality: 0.75,
       });
 
-      addDebug(`Compressed: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`Compressed: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
-      addDebug("Uploading to storage...");
+      
       const fileName = `${user.id}/${Date.now()}.jpg`;
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("closet-items")
@@ -264,13 +253,13 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         });
 
       if (uploadError) throw uploadError;
-      addDebug("Upload successful");
+      
 
       const { data: { publicUrl } } = supabase.storage
         .from("closet-items")
         .getPublicUrl(uploadData.path);
 
-      addDebug("Starting AI analysis...");
+      
       const { data: analysisData, error: analysisError } = await supabase.functions.invoke(
         "analyze-closet-item",
         {
@@ -281,7 +270,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       if (analysisError) throw new Error(analysisError.message || "AI analysis failed");
       if (!analysisData?.analysis) throw new Error("No analysis data received");
 
-      addDebug("Analysis complete!");
+      
       
       setAiAnalysis({
         ...analysisData.analysis,
@@ -302,7 +291,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to process image";
-      addDebug(`ERROR: ${errorMessage}`);
+      console.error("Processing error:", errorMessage);
       
       toast({
         title: "Error",
@@ -310,8 +299,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         variant: "destructive",
       });
       
-      // Don't reset immediately so user can see debug info
-      setTimeout(() => handleReset(), 5000);
+      handleReset();
     } finally {
       setLoading(false);
     }
@@ -490,14 +478,6 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
             <p className="text-lg">Analyzing your item...</p>
             <p className="text-sm text-muted-foreground">This may take a moment</p>
-            
-            {debugInfo.length > 0 && (
-              <div className="w-full mt-4 p-4 bg-muted rounded-lg text-xs space-y-1 max-h-40 overflow-y-auto">
-                {debugInfo.map((info, i) => (
-                  <div key={i} className="font-mono text-left">{info}</div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
