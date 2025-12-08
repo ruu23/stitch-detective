@@ -67,7 +67,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         useWebWorker: true,
       });
       
-      console.log(`Compressed from ${(file.size / 1024 / 1024).toFixed(2)}MB to ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+      
 
       // Create preview from compressed file
       const reader = new FileReader();
@@ -86,7 +86,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       };
       reader.readAsDataURL(compressedFile);
     } catch (error) {
-      console.error("Compression error:", error);
+      
       toast({
         title: "Error",
         description: "Failed to process image. Try a smaller file.",
@@ -102,11 +102,11 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
     }
 
     const image = imageRef.current;
-    console.log(`Image dimensions: ${image.naturalWidth}x${image.naturalHeight}`);
+    
     
     // Wait for image to be fully loaded
     if (!image.complete || image.naturalWidth === 0) {
-      console.log("Waiting for image to load...");
+      
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Image load timeout"));
@@ -138,7 +138,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
     const cropWidth = crop.width * scaleX;
     const cropHeight = crop.height * scaleY;
 
-    console.log(`Crop area: ${Math.round(cropWidth)}x${Math.round(cropHeight)}`);
+    
 
     if (cropWidth <= 0 || cropHeight <= 0) {
       throw new Error("Invalid crop dimensions");
@@ -155,7 +155,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       finalHeight = Math.round(cropHeight * scale);
     }
 
-    console.log(`Canvas size: ${finalWidth}x${finalHeight}`);
+    
 
     const canvas = document.createElement("canvas");
     canvas.width = finalWidth;
@@ -187,9 +187,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         finalWidth,
         finalHeight
       );
-      console.log("Image drawn on canvas");
     } catch (drawError) {
-      console.error("Draw error:", drawError);
       throw new Error("Failed to draw image");
     }
 
@@ -211,11 +209,9 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         }
         const blob = new Blob([u8arr], { type: mime });
         clearTimeout(timeout);
-        console.log(`Blob created: ${(blob.size / 1024).toFixed(2)}KB`);
         resolve(blob);
       } catch (error) {
         clearTimeout(timeout);
-        console.error("Blob conversion failed:", error);
         reject(new Error("Failed to create image blob"));
       }
     });
@@ -226,7 +222,6 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       setLoading(true);
       setStep("analyzing");
       const croppedBlob = await getCroppedImage();
-      console.log(`Cropped: ${(croppedBlob.size / 1024 / 1024).toFixed(2)}MB`);
 
       // Compress more aggressively for iPhone
       
@@ -238,7 +233,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         initialQuality: 0.75,
       });
 
-      console.log(`Compressed: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+      
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
@@ -291,7 +286,6 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to process image";
-      console.error("Processing error:", errorMessage);
       
       toast({
         title: "Error",
@@ -345,7 +339,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       onOpenChange(false);
       onSuccess();
     } catch (error) {
-      console.error("Error saving item:", error);
+      
       toast({
         title: "Error",
         description: "Failed to save item",
@@ -448,8 +442,6 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
                 alt="Crop preview"
                 className="max-h-96 w-full object-contain"
                 crossOrigin="anonymous"
-                onLoad={() => console.log("Image loaded for cropping")}
-                onError={(e) => console.error("Image load error:", e)}
               />
             </ReactCrop>
             <div className="flex gap-2">
