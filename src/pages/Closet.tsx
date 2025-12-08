@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Camera, Shirt } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddClosetItemDialog } from "@/components/AddClosetItemDialog";
+import { ItemDetailDialog } from "@/components/ItemDetailDialog";
 
 interface ClosetItem {
   id: string;
@@ -24,12 +25,20 @@ interface ClosetItem {
   wear_count?: number;
   cost_per_wear?: number;
   ai_tags?: string[];
+  style?: string;
+  formality_level?: number;
+  suitable_occasions?: string[];
+  hijab_friendly?: boolean;
+  modest_coverage?: string;
+  notes?: string;
 }
 
 const Closet = () => {
   const [items, setItems] = useState<ClosetItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<ClosetItem | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -73,6 +82,11 @@ const Closet = () => {
     }
 
     setLoading(false);
+  };
+
+  const handleItemClick = (item: ClosetItem) => {
+    setSelectedItem(item);
+    setDetailDialogOpen(true);
   };
 
   if (loading) {
@@ -122,7 +136,11 @@ const Closet = () => {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {items.map((item) => (
-              <Card key={item.id} className="cursor-pointer hover:border-primary transition-colors">
+              <Card 
+                key={item.id} 
+                className="cursor-pointer hover:border-primary transition-colors"
+                onClick={() => handleItemClick(item)}
+              >
                 <CardContent className="p-4">
                   <div className="aspect-square bg-muted rounded-lg mb-3 flex items-center justify-center">
                     {item.image_url ? (
@@ -153,6 +171,13 @@ const Closet = () => {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSuccess={loadClosetItems}
+      />
+
+      <ItemDetailDialog
+        item={selectedItem}
+        open={detailDialogOpen}
+        onOpenChange={setDetailDialogOpen}
+        onUpdate={loadClosetItems}
       />
     </div>
   );
