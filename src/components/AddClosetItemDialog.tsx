@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { auth, addDocument, uploadFile } from "@/integrations/firebase";
+import { invokeFunction } from "@/integrations/firebase/functions";
 import { Camera, Upload, Crop, Loader2 } from "lucide-react";
 import ReactCrop, { Crop as CropType } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
@@ -103,32 +104,13 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       const user = auth.currentUser;
       if (!user) throw new Error("User not authenticated");
       
-      // Convert to base64 for AI analysis
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(compressedFile);
-      });
-      
-      // Use Lovable Cloud edge function for AI analysis with base64 image
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-closet-item`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64 })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Analysis failed');
-      }
-      
-      const analysisData = await response.json();
-      if (!analysisData?.analysis) throw new Error("No analysis data received");
-      
-      // Upload to Firebase Storage after successful analysis
+      // Upload to Firebase Storage first to get URL
       const fileName = `closet-items/${user.uid}/${Date.now()}.jpg`;
       const publicUrl = await uploadFile(fileName, compressedFile, "image/jpeg");
+      
+      // Use Firebase Cloud Function for AI analysis
+      const analysisData = await invokeFunction<{ imageUrl: string }, { analysis: any }>('analyzeClosetItem', { imageUrl: publicUrl });
+      if (!analysisData?.analysis) throw new Error("No analysis data received");
       
       setAiAnalysis({ ...analysisData.analysis, imageUrl: publicUrl });
       setItemDetails({ name: analysisData.analysis.name || "", brand: analysisData.analysis.brand || "", price_paid: "", purchase_date: new Date().toISOString().split("T")[0] });
