@@ -108,16 +108,45 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       const fileName = `closet-items/${user.uid}/${Date.now()}.jpg`;
       const publicUrl = await uploadFile(fileName, compressedFile, "image/jpeg");
       
-      // Use Firebase Cloud Function for AI analysis
-      const analysisData = await invokeFunction<{ imageUrl: string }, { analysis: any }>('analyzeClosetItem', { imageUrl: publicUrl });
-      if (!analysisData?.analysis) throw new Error("No analysis data received");
+      console.log("Image uploaded, calling Cloud Function...");
+      
+      // Use Firebase Cloud Function for AI analysis with timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Function timeout - check if functions are deployed")), 30000)
+      );
+      
+      const analysisPromise = invokeFunction<{ imageUrl: string }, { analysis: any }>(
+        'analyzeClosetItem', 
+        { imageUrl: publicUrl }
+      );
+      
+      const analysisData = await Promise.race([analysisPromise, timeoutPromise]) as { analysis: any };
+      
+      if (!analysisData?.analysis) {
+        throw new Error("No analysis data received from function");
+      }
+      
+      console.log("Analysis complete:", analysisData);
       
       setAiAnalysis({ ...analysisData.analysis, imageUrl: publicUrl });
       setItemDetails({ name: analysisData.analysis.name || "", brand: analysisData.analysis.brand || "", price_paid: "", purchase_date: new Date().toISOString().split("T")[0] });
       setStep("details");
       toast({ title: "Analysis complete!", description: "Review the details and save your item" });
-    } catch (error) {
-      toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
+    } catch (error: any) {
+      console.error("Crop complete error:", error);
+      
+      let errorMessage = "Failed to analyze item";
+      if (error.message?.includes("timeout")) {
+        errorMessage = "Function timeout. Are your Cloud Functions deployed?";
+      } else if (error.code === 'functions/not-found') {
+        errorMessage = "Cloud Function not found. Please deploy your functions.";
+      } else if (error.code === 'functions/unauthenticated') {
+        errorMessage = "Authentication error. Please sign in again.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
       handleReset();
     } finally {
       setLoading(false);
