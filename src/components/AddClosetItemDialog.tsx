@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { auth, addDocument, uploadFile } from "@/integrations/firebase";
+import { auth, addDocument } from "@/integrations/firebase";
 import { Camera, Upload, Crop, Loader2 } from "lucide-react";
 import ReactCrop, { Crop as CropType } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import imageCompression from "browser-image-compression";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AddClosetItemDialogProps {
   open: boolean;
@@ -98,8 +99,14 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
     try {
       setLoading(true);
       setStep("analyzing");
+      console.log("Starting crop and analysis...");
+      
       const croppedBlob = await getCroppedImage();
+      console.log("Image cropped");
+      
       const compressedFile = await imageCompression(croppedBlob as File, { maxSizeMB: 0.8, maxWidthOrHeight: 1024, useWebWorker: true, fileType: "image/jpeg" });
+      console.log("Image compressed");
+      
       const user = auth.currentUser;
       if (!user) throw new Error("User not authenticated");
       
@@ -110,13 +117,17 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
         reader.onerror = reject;
         reader.readAsDataURL(compressedFile);
       });
+      console.log("Converted to base64");
       
       // Use Lovable Cloud edge function for AI analysis with base64 image
+      console.log("Calling AI analysis...");
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-closet-item`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: base64 })
       });
+      
+      console.log("AI response status:", response.status);
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -124,17 +135,35 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       }
       
       const analysisData = await response.json();
+      console.log("Analysis data:", analysisData);
+      
       if (!analysisData?.analysis) throw new Error("No analysis data received");
       
-      // Upload to Firebase Storage after successful analysis
-      const fileName = `closet-items/${user.uid}/${Date.now()}.jpg`;
-      const publicUrl = await uploadFile(fileName, compressedFile, "image/jpeg");
+      // Upload to Supabase Storage (public bucket)
+      console.log("Uploading to storage...");
+      const fileName = `${user.uid}/${Date.now()}.jpg`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('closet-items')
+        .upload(fileName, compressedFile, { contentType: 'image/jpeg' });
+      
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        throw new Error("Failed to upload image");
+      }
+      
+      const { data: urlData } = supabase.storage
+        .from('closet-items')
+        .getPublicUrl(fileName);
+      
+      const publicUrl = urlData.publicUrl;
+      console.log("Upload complete, URL:", publicUrl);
       
       setAiAnalysis({ ...analysisData.analysis, imageUrl: publicUrl });
       setItemDetails({ name: analysisData.analysis.name || "", brand: analysisData.analysis.brand || "", price_paid: "", purchase_date: new Date().toISOString().split("T")[0] });
       setStep("details");
       toast({ title: "Analysis complete!", description: "Review the details and save your item" });
     } catch (error) {
+      console.error("Error in handleCropComplete:", error);
       toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
       handleReset();
     } finally {
