@@ -12,14 +12,19 @@ serve(async (req) => {
   }
 
   try {
-    const { imageUrl } = await req.json();
+    const { imageUrl, imageBase64 } = await req.json();
     
-    if (!imageUrl) {
+    // Accept either URL or base64
+    const imageData = imageBase64 || imageUrl;
+    
+    if (!imageData) {
       return new Response(
-        JSON.stringify({ error: 'Image URL is required' }),
+        JSON.stringify({ error: 'Image URL or base64 is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('Processing image analysis request...');
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -62,12 +67,14 @@ Analyze the clothing item and return JSON with these fields:
             role: 'user', 
             content: [
               { type: 'text', text: 'Analyze this clothing item and return the JSON analysis.' },
-              { type: 'image_url', image_url: { url: imageUrl } }
+              { type: 'image_url', image_url: { url: imageData } }
             ]
           }
         ],
       }),
     });
+
+    console.log('AI response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
