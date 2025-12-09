@@ -1,4 +1,4 @@
-// StyleSync App Entry Point
+// StyleSync App Entry Point - Fashion Styling Platform
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
