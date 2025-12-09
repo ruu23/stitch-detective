@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
+import { auth, getDocuments, where } from "@/integrations/firebase";
 import { Loader2, RotateCcw } from "lucide-react";
 
 interface AvatarViewerProps {
@@ -24,21 +24,18 @@ export const AvatarViewer = ({ userId, className }: AvatarViewerProps) => {
       
       let targetUserId = userId;
       if (!targetUserId) {
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = auth.currentUser;
         if (!user) return;
-        targetUserId = user.id;
+        targetUserId = user.uid;
       }
 
-      const { data: avatar, error } = await supabase
-        .from('avatars')
-        .select('*')
-        .eq('user_id', targetUserId)
-        .maybeSingle();
+      const avatars = await getDocuments<{ avatarModelUrl: string }>(
+        "avatars",
+        where("userId", "==", targetUserId)
+      );
 
-      if (error) throw error;
-
-      if (avatar?.avatar_model_url) {
-        setAvatarUrl(avatar.avatar_model_url);
+      if (avatars && avatars.length > 0 && avatars[0].avatarModelUrl) {
+        setAvatarUrl(avatars[0].avatarModelUrl);
       }
     } catch (error) {
       console.error('Error loading avatar:', error);

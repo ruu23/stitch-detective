@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { auth, getDocument, setDocument } from "@/integrations/firebase";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -103,19 +103,14 @@ const Onboarding = () => {
   }, []);
 
   const checkProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = auth.currentUser;
     if (!user) {
       navigate("/auth");
       return;
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profile && profile.styling_preference) {
+    const profile = await getDocument("profiles", user.uid);
+    if (profile && (profile as any).stylingPreference) {
       navigate("/dashboard");
     }
   };
@@ -132,18 +127,17 @@ const Onboarding = () => {
 
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = auth.currentUser;
       if (!user) throw new Error("No user found");
 
-      const { error } = await supabase.from("profiles").insert({
-        id: user.id,
-        full_name: user.user_metadata.full_name,
-        styling_preference: stylingPreference,
+      await setDocument("profiles", user.uid, {
+        userId: user.uid,
+        fullName: user.displayName || "",
+        stylingPreference,
         occupation,
         location,
+        createdAt: new Date()
       });
-
-      if (error) throw error;
 
       toast({
         title: "Profile created!",

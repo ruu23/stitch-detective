@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { firebaseSignUp, firebaseSignIn, onAuthChange } from "@/integrations/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,11 +30,12 @@ const Auth = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+    const unsubscribe = onAuthChange((user) => {
+      if (user) {
         navigate("/dashboard");
       }
     });
+    return () => unsubscribe();
   }, [navigate]);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -42,7 +43,6 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      // Validate inputs
       if (isLogin) {
         const validation = signInSchema.safeParse({ email, password });
         if (!validation.success) {
@@ -56,12 +56,7 @@ const Auth = () => {
           return;
         }
 
-        const { error } = await supabase.auth.signInWithPassword({
-          email: validation.data.email,
-          password: validation.data.password,
-        });
-
-        if (error) throw error;
+        await firebaseSignIn(validation.data.email, validation.data.password);
 
         toast({
           title: "Welcome back!",
@@ -81,31 +76,31 @@ const Auth = () => {
           return;
         }
 
-        const { data, error } = await supabase.auth.signUp({
-          email: validation.data.email,
-          password: validation.data.password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/dashboard`,
-            data: {
-              full_name: validation.data.fullName,
-            },
-          },
+        await firebaseSignUp(
+          validation.data.email,
+          validation.data.password,
+          validation.data.fullName
+        );
+
+        toast({
+          title: "Account created!",
+          description: "Welcome to StyleSync. Let's set up your profile.",
         });
-
-        if (error) throw error;
-
-        if (data.user) {
-          toast({
-            title: "Account created!",
-            description: "Welcome to StyleSync. Let's set up your profile.",
-          });
-          navigate("/onboarding");
-        }
+        navigate("/onboarding");
       }
     } catch (error: any) {
+      let errorMessage = error.message;
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'An account with this email already exists.';
+      } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+        errorMessage = 'Invalid email or password.';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak.';
+      }
+      
       toast({
         title: "Error",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

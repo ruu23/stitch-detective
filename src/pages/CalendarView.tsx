@@ -1,18 +1,18 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { auth, getDocument, getDocuments, where, orderBy } from "@/integrations/firebase";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { format } from "date-fns";
 
 interface CalendarLook {
   id: string;
-  scheduled_date: string;
+  scheduledDate: string;
   activity?: string;
-  outfit_id?: string;
+  outfitId?: string;
 }
 
 const CalendarView = () => {
@@ -26,36 +26,37 @@ const CalendarView = () => {
   }, []);
 
   const loadScheduledLooks = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = auth.currentUser;
     
     if (!user) {
       navigate("/auth");
       return;
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", user.id)
-      .maybeSingle();
+    const profile = await getDocument("profiles", user.uid);
 
     if (!profile) {
       navigate("/onboarding");
       return;
     }
 
-    const { data } = await supabase
-      .from("calendar_looks")
-      .select("*")
-      .eq("user_id", profile.id)
-      .order("scheduled_date", { ascending: true });
+    try {
+      const data = await getDocuments<CalendarLook>(
+        "calendarLooks",
+        where("userId", "==", user.uid),
+        orderBy("scheduledDate", "asc")
+      );
 
-    setScheduledLooks(data || []);
+      setScheduledLooks(data || []);
+    } catch (error) {
+      console.error("Error loading calendar looks:", error);
+    }
+    
     setLoading(false);
   };
 
   const selectedDateLooks = scheduledLooks.filter(
-    (look) => selectedDate && format(new Date(look.scheduled_date), "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd")
+    (look) => selectedDate && format(new Date(look.scheduledDate), "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd")
   );
 
   return (
@@ -105,7 +106,7 @@ const CalendarView = () => {
                       <div>
                         <h3 className="font-medium">{look.activity || "Scheduled Look"}</h3>
                         <p className="text-sm text-muted-foreground">
-                          {format(new Date(look.scheduled_date), "h:mm a")}
+                          {format(new Date(look.scheduledDate), "h:mm a")}
                         </p>
                       </div>
                       <Button variant="outline" size="sm">

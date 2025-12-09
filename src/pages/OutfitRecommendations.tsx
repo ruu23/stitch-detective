@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeFunction } from "@/integrations/firebase";
 import { Sparkles, ArrowLeft, Loader2, Check } from "lucide-react";
 
 const OutfitRecommendations = () => {
@@ -29,17 +29,10 @@ const OutfitRecommendations = () => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke(
-        "generate-outfit-recommendations",
-        {
-          body: {
-            occasion,
-            date: date || new Date().toISOString().split('T')[0],
-          },
-        }
-      );
-
-      if (error) throw error;
+      const data = await invokeFunction("generateOutfitRecommendations", {
+        occasion,
+        date: date || new Date().toISOString().split('T')[0],
+      });
 
       if (data.error) {
         toast({
@@ -72,14 +65,7 @@ const OutfitRecommendations = () => {
     try {
       const itemIds = items.map(item => item.id);
       
-      const { data, error } = await supabase.functions.invoke(
-        "update-wear-count",
-        {
-          body: { itemIds },
-        }
-      );
-
-      if (error) throw error;
+      await invokeFunction("updateWearCount", { itemIds });
 
       toast({
         title: "Outfit logged!",
