@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { auth, addDocument, uploadFile, invokeFunction } from "@/integrations/firebase";
+import { auth, addDocument, uploadFile } from "@/integrations/firebase";
 import { Camera, Upload, Crop, Loader2 } from "lucide-react";
 import ReactCrop, { Crop as CropType } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
@@ -104,7 +104,20 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       if (!user) throw new Error("User not authenticated");
       const fileName = `closet-items/${user.uid}/${Date.now()}.jpg`;
       const publicUrl = await uploadFile(fileName, compressedFile, "image/jpeg");
-      const analysisData = await invokeFunction("analyzeClosetItem", { imageUrl: publicUrl });
+      
+      // Use Lovable Cloud edge function for AI analysis
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-closet-item`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: publicUrl })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Analysis failed');
+      }
+      
+      const analysisData = await response.json();
       if (!analysisData?.analysis) throw new Error("No analysis data received");
       setAiAnalysis({ ...analysisData.analysis, imageUrl: publicUrl });
       setItemDetails({ name: analysisData.analysis.name || "", brand: analysisData.analysis.brand || "", price_paid: "", purchase_date: new Date().toISOString().split("T")[0] });
