@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth, getDocument, getDocuments, where, orderBy } from "@/integrations/firebase";
+import { auth, getDocument, getDocuments, where } from "@/integrations/firebase";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -62,13 +62,20 @@ const Closet = () => {
     }
 
     try {
+      // Query without orderBy to avoid Firestore composite index requirement
       const data = await getDocuments<ClosetItem>(
         "closetItems",
-        where("userId", "==", user.uid),
-        orderBy("createdAt", "desc")
+        where("userId", "==", user.uid)
       );
 
-      setItems(data || []);
+      // Sort client-side by createdAt (newest first)
+      const sortedData = (data || []).sort((a: any, b: any) => {
+        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      setItems(sortedData);
     } catch (error) {
       toast({
         title: "Error loading closet",
