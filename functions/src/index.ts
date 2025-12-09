@@ -221,7 +221,7 @@ export const generateOutfitRecommendations = functions.https.onCall(async (data,
   }
 
   const userId = context.auth.uid;
-  const { occasion, date } = data;
+  const { occasion } = data;
 
   try {
     // Get user profile
@@ -364,7 +364,7 @@ export const generateAvatar = functions.https.onCall(async (data, context) => {
   }
 
   const userId = context.auth.uid;
-  const { frontImageUrl, sideImageUrl, faceImageUrl, bodyScanId } = data;
+  const { frontImageUrl, sideImageUrl, faceImageUrl } = data;
 
   try {
     const LOVABLE_API_KEY = functions.config().lovable?.api_key;
