@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth, getDocument } from "@/integrations/firebase";
+import { auth, getDocument, onAuthChange } from "@/integrations/firebase";
 import Navigation from "@/components/Navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,27 +19,32 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    const unsubscribe = onAuthChange(async (user) => {
+      if (!user) {
+        navigate("/auth");
+        return;
+      }
 
-  const loadProfile = async () => {
-    const user = auth.currentUser;
-    
-    if (!user) {
-      navigate("/auth");
-      return;
-    }
+      try {
+        const profileData = await getDocument<Profile>("profiles", user.uid);
 
-    const profileData = await getDocument<Profile>("profiles", user.uid);
+        if (!profileData) {
+          navigate("/onboarding");
+          return;
+        }
 
-    if (!profileData) {
-      navigate("/onboarding");
-      return;
-    }
+        setProfile(profileData);
+      } catch (error) {
+        console.error("Error loading profile:", error);
+        // If profile doesn't exist, redirect to onboarding
+        navigate("/onboarding");
+      } finally {
+        setLoading(false);
+      }
+    });
 
-    setProfile(profileData);
-    setLoading(false);
-  };
+    return () => unsubscribe();
+  }, [navigate]);
 
   if (loading) {
     return (
