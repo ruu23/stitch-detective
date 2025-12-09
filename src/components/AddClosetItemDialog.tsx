@@ -102,14 +102,20 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       const compressedFile = await imageCompression(croppedBlob as File, { maxSizeMB: 0.8, maxWidthOrHeight: 1024, useWebWorker: true, fileType: "image/jpeg" });
       const user = auth.currentUser;
       if (!user) throw new Error("User not authenticated");
-      const fileName = `closet-items/${user.uid}/${Date.now()}.jpg`;
-      const publicUrl = await uploadFile(fileName, compressedFile, "image/jpeg");
       
-      // Use Lovable Cloud edge function for AI analysis
+      // Convert to base64 for AI analysis
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(compressedFile);
+      });
+      
+      // Use Lovable Cloud edge function for AI analysis with base64 image
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-closet-item`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: publicUrl })
+        body: JSON.stringify({ imageBase64: base64 })
       });
       
       if (!response.ok) {
@@ -119,6 +125,11 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       
       const analysisData = await response.json();
       if (!analysisData?.analysis) throw new Error("No analysis data received");
+      
+      // Upload to Firebase Storage after successful analysis
+      const fileName = `closet-items/${user.uid}/${Date.now()}.jpg`;
+      const publicUrl = await uploadFile(fileName, compressedFile, "image/jpeg");
+      
       setAiAnalysis({ ...analysisData.analysis, imageUrl: publicUrl });
       setItemDetails({ name: analysisData.analysis.name || "", brand: analysisData.analysis.brand || "", price_paid: "", purchase_date: new Date().toISOString().split("T")[0] });
       setStep("details");
