@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { auth, firebaseSignOut, getDocument } from "@/integrations/firebase";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,8 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { AvatarViewer } from "@/components/AvatarViewer";
 
 interface Profile {
-  full_name: string;
-  styling_preference: "veiled" | "unveiled";
+  fullName: string;
+  stylingPreference: "veiled" | "unveiled";
   occupation: string;
   location: string;
 }
@@ -26,25 +26,21 @@ const Profile = () => {
   }, []);
 
   const loadProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = auth.currentUser;
     
     if (!user) {
       navigate("/auth");
       return;
     }
 
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
+    const data = await getDocument<Profile>("profiles", user.uid);
 
     setProfile(data);
     setLoading(false);
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await firebaseSignOut();
     toast({
       title: "Signed out",
       description: "You've been successfully signed out.",
@@ -74,9 +70,9 @@ const Profile = () => {
                 <User className="h-10 w-10 text-primary" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold">{profile?.full_name}</h2>
+                <h2 className="text-xl font-semibold">{profile?.fullName}</h2>
                 <p className="text-sm text-muted-foreground capitalize">
-                  {profile?.styling_preference} style
+                  {profile?.stylingPreference} style
                 </p>
               </div>
             </div>

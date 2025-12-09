@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { auth, getDocument, getDocuments, where, orderBy } from "@/integrations/firebase";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,23 +13,23 @@ interface ClosetItem {
   id: string;
   name: string;
   category: string;
-  item_type?: string;
+  itemType?: string;
   brand?: string;
   color?: string;
-  color_primary?: string;
-  color_secondary?: string;
+  colorPrimary?: string;
+  colorSecondary?: string;
   pattern?: string;
   season?: string;
-  image_url?: string;
-  price_paid?: number;
-  wear_count?: number;
-  cost_per_wear?: number;
-  ai_tags?: string[];
+  imageUrl?: string;
+  pricePaid?: number;
+  wearCount?: number;
+  costPerWear?: number;
+  aiTags?: string[];
   style?: string;
-  formality_level?: number;
-  suitable_occasions?: string[];
-  hijab_friendly?: boolean;
-  modest_coverage?: string;
+  formalityLevel?: number;
+  suitableOccasions?: string[];
+  hijabFriendly?: boolean;
+  modestCoverage?: string;
   notes?: string;
 }
 
@@ -47,38 +47,34 @@ const Closet = () => {
   }, []);
 
   const loadClosetItems = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = auth.currentUser;
     
     if (!user) {
       navigate("/auth");
       return;
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", user.id)
-      .maybeSingle();
+    const profile = await getDocument("profiles", user.uid);
 
     if (!profile) {
       navigate("/onboarding");
       return;
     }
 
-    const { data, error } = await supabase
-      .from("closet_items")
-      .select("*")
-      .eq("user_id", profile.id)
-      .order("created_at", { ascending: false });
+    try {
+      const data = await getDocuments<ClosetItem>(
+        "closetItems",
+        where("userId", "==", user.uid),
+        orderBy("createdAt", "desc")
+      );
 
-    if (error) {
+      setItems(data || []);
+    } catch (error) {
       toast({
         title: "Error loading closet",
-        description: error.message,
+        description: (error as Error).message,
         variant: "destructive",
       });
-    } else {
-      setItems(data || []);
     }
 
     setLoading(false);
@@ -143,9 +139,9 @@ const Closet = () => {
               >
                 <CardContent className="p-4">
                   <div className="aspect-square bg-muted rounded-lg mb-3 flex items-center justify-center">
-                    {item.image_url ? (
+                    {item.imageUrl ? (
                       <img
-                        src={item.image_url}
+                        src={item.imageUrl}
                         alt={item.name}
                         className="w-full h-full object-cover rounded-lg"
                       />

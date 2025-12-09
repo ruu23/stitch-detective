@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { auth, getDocument } from "@/integrations/firebase";
 import Navigation from "@/components/Navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Sun, MapPin, Shirt, Calendar, ShoppingBag, Scan } from "lucide-react";
 
 interface Profile {
-  full_name: string;
-  styling_preference: "veiled" | "unveiled";
+  fullName: string;
+  stylingPreference: "veiled" | "unveiled";
   occupation: string;
   location: string;
 }
@@ -23,18 +23,14 @@ const Dashboard = () => {
   }, []);
 
   const loadProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = auth.currentUser;
     
     if (!user) {
       navigate("/auth");
       return;
     }
 
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
+    const profileData = await getDocument<Profile>("profiles", user.uid);
 
     if (!profileData) {
       navigate("/onboarding");
@@ -62,7 +58,7 @@ const Dashboard = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-2xl font-display font-semibold">
-              Hello, {profile?.full_name?.split(' ')[0]}
+              Hello, {profile?.fullName?.split(' ')[0]}
             </h1>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4" />

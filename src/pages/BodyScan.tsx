@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Camera, Check, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { auth, addDocument, uploadFile, invokeFunction } from "@/integrations/firebase";
 
 type ScanStep = "intro" | "front" | "side" | "face" | "measurements" | "avatar-processing" | "processing" | "complete";
 
@@ -52,60 +52,27 @@ const BodyScan = () => {
         setStep("processing");
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = auth.currentUser;
       if (!user) throw new Error("User not authenticated");
 
       let aiAnalysis = null;
-      let publicFrontUrl = "";
-      let publicSideUrl = "";
+      const timestamp = Date.now();
 
       // Convert base64 to blob
       const frontBlob = await fetch(frontUrl).then(r => r.blob());
       const sideBlob = await fetch(sideUrl).then(r => r.blob());
       const faceBlob = await fetch(faceUrl).then(r => r.blob());
 
-      // Upload to storage
-      const timestamp = Date.now();
-      const frontPath = `${user.id}/front-${timestamp}.jpg`;
-      const sidePath = `${user.id}/side-${timestamp}.jpg`;
-      const facePath = `${user.id}/face-${timestamp}.jpg`;
+      // Upload to Firebase Storage
+      const frontPath = `body-scans/${user.uid}/front-${timestamp}.jpg`;
+      const sidePath = `body-scans/${user.uid}/side-${timestamp}.jpg`;
+      const facePath = `body-scans/${user.uid}/face-${timestamp}.jpg`;
 
-      // Create storage bucket if it doesn't exist
-      const { data: buckets } = await supabase.storage.listBuckets();
-      const scanBucketExists = buckets?.some(b => b.name === 'body-scans');
-      
-      if (!scanBucketExists) {
-        const { error: bucketError } = await supabase.storage.createBucket('body-scans', {
-          public: true,
-          fileSizeLimit: 5242880, // 5MB
-        });
-        if (bucketError) console.error('Bucket creation error:', bucketError);
-      }
-
-      const [frontUpload, sideUpload, faceUpload] = await Promise.all([
-        supabase.storage.from("body-scans").upload(frontPath, frontBlob),
-        supabase.storage.from("body-scans").upload(sidePath, sideBlob),
-        supabase.storage.from("body-scans").upload(facePath, faceBlob),
+      const [frontPublicUrl, sidePublicUrl, facePublicUrl] = await Promise.all([
+        uploadFile(frontPath, frontBlob, "image/jpeg"),
+        uploadFile(sidePath, sideBlob, "image/jpeg"),
+        uploadFile(facePath, faceBlob, "image/jpeg"),
       ]);
-
-      if (frontUpload.error) throw frontUpload.error;
-      if (sideUpload.error) throw sideUpload.error;
-      if (faceUpload.error) throw faceUpload.error;
-
-      const { data: { publicUrl: frontPublicUrl } } = supabase.storage
-        .from("body-scans")
-        .getPublicUrl(frontUpload.data.path);
-
-      const { data: { publicUrl: sidePublicUrl } } = supabase.storage
-        .from("body-scans")
-        .getPublicUrl(sideUpload.data.path);
-
-      const { data: { publicUrl: facePublicUrl } } = supabase.storage
-        .from("body-scans")
-        .getPublicUrl(faceUpload.data.path);
-
-      publicFrontUrl = frontPublicUrl;
-      publicSideUrl = sidePublicUrl;
 
       // Get AI analysis if requested
       if (useAI) {
@@ -114,50 +81,44 @@ const BodyScan = () => {
           description: "This may take a moment",
         });
 
-        const { data: analysisData, error: analysisError } = await supabase.functions.invoke(
-          "analyze-body-shape",
-          {
-            body: {
-              frontImageUrl: frontPublicUrl,
-              sideImageUrl: sidePublicUrl,
-            },
-          }
-        );
+        try {
+          const analysisData = await invokeFunction("analyzeBodyShape", {
+            frontImageUrl: frontPublicUrl,
+            sideImageUrl: sidePublicUrl,
+          });
 
-        if (analysisError) {
+          if (analysisData) {
+            aiAnalysis = analysisData;
+            if (analysisData.estimated_measurements) {
+              setHeight(String(analysisData.estimated_measurements.height || ""));
+              setBust(String(analysisData.estimated_measurements.bust || ""));
+              setWaist(String(analysisData.estimated_measurements.waist || ""));
+              setHips(String(analysisData.estimated_measurements.hips || ""));
+            }
+          }
+        } catch (analysisError) {
           console.error("AI analysis error:", analysisError);
           toast({
             title: "AI Analysis Failed",
             description: "Using manual measurements instead",
             variant: "destructive",
           });
-        } else if (analysisData) {
-          aiAnalysis = analysisData;
-          // Update state with AI estimates
-          if (analysisData.estimated_measurements) {
-            setHeight(String(analysisData.estimated_measurements.height || ""));
-            setBust(String(analysisData.estimated_measurements.bust || ""));
-            setWaist(String(analysisData.estimated_measurements.waist || ""));
-            setHips(String(analysisData.estimated_measurements.hips || ""));
-          }
         }
       }
 
-      // Save to database
-      const { data: bodyScanData, error: dbError } = await supabase.from("body_scans").insert({
-        user_id: user.id,
-        front_image_url: publicFrontUrl,
-        side_image_url: publicSideUrl,
-        face_image_url: facePublicUrl,
+      // Save to Firestore
+      const bodyScanData = await addDocument("bodyScans", {
+        userId: user.uid,
+        frontImageUrl: frontPublicUrl,
+        sideImageUrl: sidePublicUrl,
+        faceImageUrl: facePublicUrl,
         height: height ? parseFloat(height) : (aiAnalysis?.estimated_measurements?.height || null),
         bust: bust ? parseFloat(bust) : (aiAnalysis?.estimated_measurements?.bust || null),
         waist: waist ? parseFloat(waist) : (aiAnalysis?.estimated_measurements?.waist || null),
         hips: hips ? parseFloat(hips) : (aiAnalysis?.estimated_measurements?.hips || null),
-        body_shape: aiAnalysis?.body_shape || null,
-        measurements_json: aiAnalysis ? JSON.stringify(aiAnalysis) : null,
-      }).select().single();
-
-      if (dbError) throw dbError;
+        bodyShape: aiAnalysis?.body_shape || null,
+        measurementsJson: aiAnalysis ? JSON.stringify(aiAnalysis) : null,
+      });
 
       // Generate 3D Avatar if requested
       if (generateAvatar && bodyScanData) {
@@ -166,29 +127,26 @@ const BodyScan = () => {
           description: "Creating your hyper-realistic avatar",
         });
 
-        const { data: avatarData, error: avatarError } = await supabase.functions.invoke(
-          "generate-avatar",
-          {
-            body: {
-              frontImageUrl: publicFrontUrl,
-              sideImageUrl: publicSideUrl,
-              faceImageUrl: facePublicUrl,
-              bodyScanId: bodyScanData.id,
-            },
-          }
-        );
+        try {
+          const avatarData = await invokeFunction("generateAvatar", {
+            frontImageUrl: frontPublicUrl,
+            sideImageUrl: sidePublicUrl,
+            faceImageUrl: facePublicUrl,
+            bodyScanId: bodyScanData.id,
+          });
 
-        if (avatarError) {
+          if (avatarData?.success) {
+            toast({
+              title: "Avatar Generated!",
+              description: "Your 3D avatar is ready",
+            });
+          }
+        } catch (avatarError) {
           console.error("Avatar generation error:", avatarError);
           toast({
             title: "Avatar Generation Failed",
             description: "Body scan saved, but avatar creation encountered an error",
             variant: "destructive",
-          });
-        } else if (avatarData?.success) {
-          toast({
-            title: "Avatar Generated!",
-            description: "Your 3D avatar is ready",
           });
         }
       }
@@ -468,7 +426,7 @@ const BodyScan = () => {
                     className="w-full h-10 px-3 rounded-md border border-input bg-background"
                     value={height}
                     onChange={(e) => setHeight(e.target.value)}
-                    placeholder="165"
+                    placeholder="e.g., 165"
                   />
                 </div>
                 <div>
@@ -480,7 +438,7 @@ const BodyScan = () => {
                     className="w-full h-10 px-3 rounded-md border border-input bg-background"
                     value={bust}
                     onChange={(e) => setBust(e.target.value)}
-                    placeholder="90"
+                    placeholder="e.g., 90"
                   />
                 </div>
                 <div>
@@ -492,7 +450,7 @@ const BodyScan = () => {
                     className="w-full h-10 px-3 rounded-md border border-input bg-background"
                     value={waist}
                     onChange={(e) => setWaist(e.target.value)}
-                    placeholder="70"
+                    placeholder="e.g., 70"
                   />
                 </div>
                 <div>
@@ -504,95 +462,71 @@ const BodyScan = () => {
                     className="w-full h-10 px-3 rounded-md border border-input bg-background"
                     value={hips}
                     onChange={(e) => setHips(e.target.value)}
-                    placeholder="95"
+                    placeholder="e.g., 95"
                   />
                 </div>
               </div>
 
-              <a
-                href="https://www.youtube.com/results?search_query=how+to+measure+yourself+for+clothing"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-primary hover:underline block text-center"
-              >
-                How to measure yourself correctly
-              </a>
-
               <div className="space-y-3">
                 <Button
                   size="lg"
-                  className="w-full bg-accent hover:bg-accent/90"
-                  onClick={() => handleSaveScan(frontPhoto!, sidePhoto!, facePhoto!, true, true)}
-                >
-                  Generate 3D Avatar (AI)
-                </Button>
-                <Button
-                  size="lg"
                   className="w-full"
-                  onClick={() => handleSaveScan(frontPhoto!, sidePhoto!, facePhoto!, true, false)}
+                  onClick={() => {
+                    if (frontPhoto && sidePhoto && facePhoto) {
+                      handleSaveScan(frontPhoto, sidePhoto, facePhoto, true, true);
+                    }
+                  }}
                 >
-                  Use AI Estimation Only
+                  Save & Generate Avatar
                 </Button>
                 <Button
                   variant="outline"
-                  size="lg"
                   className="w-full"
-                  onClick={() => handleSaveScan(frontPhoto!, sidePhoto!, facePhoto!, false, false)}
+                  onClick={() => {
+                    if (frontPhoto && sidePhoto && facePhoto) {
+                      handleSaveScan(frontPhoto, sidePhoto, facePhoto, true, false);
+                    }
+                  }}
                 >
-                  Enter Manually
+                  Save Without Avatar
                 </Button>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {step === "avatar-processing" && (
+        {(step === "processing" || step === "avatar-processing") && (
           <Card>
-            <CardContent className="p-12 text-center space-y-4">
-              <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto animate-pulse">
-                <Camera className="h-8 w-8 text-accent" />
+            <CardContent className="p-8 text-center space-y-6">
+              <div className="animate-spin w-16 h-16 border-4 border-primary border-t-transparent rounded-full mx-auto" />
+              <div>
+                <h2 className="text-2xl font-display font-bold mb-2">
+                  {step === "avatar-processing" ? "Creating Your Avatar" : "Processing"}
+                </h2>
+                <p className="text-muted-foreground">
+                  {step === "avatar-processing" 
+                    ? "Generating your hyper-realistic 3D avatar..." 
+                    : "Analyzing your photos and saving your measurements..."}
+                </p>
               </div>
-              <h2 className="text-2xl font-display font-bold">
-                Creating your 3D Avatar...
-              </h2>
-              <p className="text-muted-foreground">
-                AI is analyzing your features and generating a hyper-realistic avatar
-              </p>
-              <div className="text-sm text-muted-foreground pt-4">
-                This may take up to 60 seconds
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {step === "processing" && (
-          <Card>
-            <CardContent className="p-12 text-center space-y-4">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto animate-pulse">
-                <Camera className="h-8 w-8 text-primary" />
-              </div>
-              <h2 className="text-2xl font-display font-bold">
-                Processing your scan...
-              </h2>
-              <p className="text-muted-foreground">
-                This will only take a moment
-              </p>
             </CardContent>
           </Card>
         )}
 
         {step === "complete" && (
           <Card>
-            <CardContent className="p-12 text-center space-y-4">
-              <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto">
-                <Check className="h-8 w-8 text-primary-foreground" />
+            <CardContent className="p-8 text-center space-y-6">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                <Check className="h-8 w-8 text-green-600" />
               </div>
-              <h2 className="text-2xl font-display font-bold">
-                All set!
-              </h2>
-              <p className="text-muted-foreground">
-                Your body scan has been saved successfully
-              </p>
+              <div>
+                <h2 className="text-2xl font-display font-bold mb-2">
+                  Body Scan Complete!
+                </h2>
+                <p className="text-muted-foreground">
+                  Your measurements and avatar have been saved.
+                </p>
+              </div>
             </CardContent>
           </Card>
         )}
