@@ -221,28 +221,15 @@ const Friends = () => {
     loadSuggestions(currentUserId);
   };
 
-  const acceptFriendRequest = async (requestId: string, requesterId: string) => {
-    // Update request status
-    const { error: updateError } = await supabase
-      .from("friend_requests")
-      .update({ status: "accepted" })
-      .eq("id", requestId);
+  const acceptFriendRequest = async (requestId: string, _requesterId: string) => {
+    // Use atomic edge function to accept friend request
+    const { data, error } = await supabase.functions.invoke('accept-friend-request', {
+      body: { requestId }
+    });
 
-    if (updateError) {
+    if (error || (data && data.error)) {
+      console.error("Failed to accept request:", error || data?.error);
       toast.error("Failed to accept request");
-      return;
-    }
-
-    // Create friendship (bidirectional)
-    const { error: friendshipError } = await supabase
-      .from("friendships")
-      .insert([
-        { user_id: currentUserId, friend_id: requesterId },
-        { user_id: requesterId, friend_id: currentUserId }
-      ]);
-
-    if (friendshipError) {
-      toast.error("Failed to create friendship");
       return;
     }
 
