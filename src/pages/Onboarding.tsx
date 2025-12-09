@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth, getDocument, setDocument } from "@/integrations/firebase";
+import { User } from "firebase/auth";
+import { auth, getDocument, setDocument, onAuthChange } from "@/integrations/firebase";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -95,25 +96,34 @@ const Onboarding = () => {
   const [occupation, setOccupation] = useState("");
   const [location, setLocation] = useState("");
   const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    checkProfile();
-  }, []);
+    const unsubscribe = onAuthChange(async (user) => {
+      setCurrentUser(user);
+      setAuthReady(true);
+      
+      if (!user) {
+        navigate("/auth");
+        return;
+      }
 
-  const checkProfile = async () => {
-    const user = auth.currentUser;
-    if (!user) {
-      navigate("/auth");
-      return;
-    }
+      try {
+        const profile = await getDocument("profiles", user.uid);
+        if (profile && (profile as any).stylingPreference) {
+          navigate("/dashboard");
+        }
+      } catch (error) {
+        // Profile doesn't exist, continue with onboarding
+        console.log("No existing profile, continuing with onboarding");
+      }
+    });
 
-    const profile = await getDocument("profiles", user.uid);
-    if (profile && (profile as any).stylingPreference) {
-      navigate("/dashboard");
-    }
-  };
+    return () => unsubscribe();
+  }, [navigate]);
 
   const handleSaveProfile = async () => {
     if (!stylingPreference) {
@@ -125,14 +135,19 @@ const Onboarding = () => {
       return;
     }
 
+    if (!authReady || !currentUser) {
+      toast({
+        title: "Please wait",
+        description: "Authentication is still loading.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error("No user found");
-
-      await setDocument("profiles", user.uid, {
-        userId: user.uid,
-        fullName: user.displayName || "",
+      await setDocument("profiles", currentUser.uid, {
+        fullName: currentUser.displayName || "",
         stylingPreference,
         occupation,
         location,
