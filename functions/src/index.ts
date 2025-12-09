@@ -1,15 +1,9 @@
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
+import * as functions from "firebase-functions";
+import * as admin from "firebase-admin";
 
 admin.initializeApp();
 
 const db = admin.firestore();
-
-// CORS headers for all functions
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-};
 
 // Analyze Closet Item - Uses AI to analyze clothing images
 export const analyzeClosetItem = functions.https.onCall(async (data, context) => {
