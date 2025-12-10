@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth, getDocument, onAuthChange } from "@/integrations/firebase";
+import { useUser } from "@clerk/clerk-react";
+import { getDocument } from "@/integrations/mongodb";
 import Navigation from "@/components/Navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,36 +18,40 @@ const Dashboard = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { user, isLoaded, isSignedIn } = useUser();
 
   useEffect(() => {
-    const unsubscribe = onAuthChange(async (user) => {
-      if (!user) {
-        navigate("/auth");
+    if (!isLoaded) return;
+    
+    if (!isSignedIn) {
+      navigate("/auth");
+      return;
+    }
+
+    loadProfile();
+  }, [isLoaded, isSignedIn, navigate]);
+
+  const loadProfile = async () => {
+    if (!user) return;
+
+    try {
+      const profileData = await getDocument<Profile>("profiles", user.id);
+
+      if (!profileData) {
+        navigate("/onboarding");
         return;
       }
 
-      try {
-        const profileData = await getDocument<Profile>("profiles", user.uid);
+      setProfile(profileData);
+    } catch (error) {
+      console.error("Error loading profile:", error);
+      navigate("/onboarding");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        if (!profileData) {
-          navigate("/onboarding");
-          return;
-        }
-
-        setProfile(profileData);
-      } catch (error) {
-        console.error("Error loading profile:", error);
-        // If profile doesn't exist, redirect to onboarding
-        navigate("/onboarding");
-      } finally {
-        setLoading(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [navigate]);
-
-  if (loading) {
+  if (!isLoaded || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin">
@@ -63,7 +68,7 @@ const Dashboard = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-2xl font-display font-semibold">
-              Hello, {profile?.fullName?.split(' ')[0]}
+              Hello, {profile?.fullName?.split(' ')[0] || user?.firstName}
             </h1>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4" />

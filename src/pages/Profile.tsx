@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth, firebaseSignOut, getDocument } from "@/integrations/firebase";
+import { useUser, useClerk } from "@clerk/clerk-react";
+import { getDocument } from "@/integrations/mongodb";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,27 +21,35 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, isLoaded, isSignedIn } = useUser();
+  const { signOut } = useClerk();
 
   useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
-    const user = auth.currentUser;
+    if (!isLoaded) return;
     
-    if (!user) {
+    if (!isSignedIn) {
       navigate("/auth");
       return;
     }
 
-    const data = await getDocument<Profile>("profiles", user.uid);
+    loadProfile();
+  }, [isLoaded, isSignedIn, navigate]);
 
-    setProfile(data);
-    setLoading(false);
+  const loadProfile = async () => {
+    if (!user) return;
+
+    try {
+      const data = await getDocument<Profile>("profiles", user.id);
+      setProfile(data);
+    } catch (error) {
+      console.error("Error loading profile:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSignOut = async () => {
-    await firebaseSignOut();
+    await signOut();
     toast({
       title: "Signed out",
       description: "You've been successfully signed out.",
@@ -48,7 +57,7 @@ const Profile = () => {
     navigate("/auth");
   };
 
-  if (loading) {
+  if (!isLoaded || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin">
@@ -66,11 +75,15 @@ const Profile = () => {
         <Card className="mb-6">
           <CardContent className="p-6">
             <div className="flex items-center gap-4 mb-6">
-              <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
-                <User className="h-10 w-10 text-primary" />
+              <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                {user?.imageUrl ? (
+                  <img src={user.imageUrl} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="h-10 w-10 text-primary" />
+                )}
               </div>
               <div>
-                <h2 className="text-xl font-semibold">{profile?.fullName}</h2>
+                <h2 className="text-xl font-semibold">{profile?.fullName || user?.fullName}</h2>
                 <p className="text-sm text-muted-foreground capitalize">
                   {profile?.stylingPreference} style
                 </p>
