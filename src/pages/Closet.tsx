@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth, getDocument, getDocuments, where } from "@/integrations/firebase";
+import { useUser } from "@clerk/clerk-react";
+import { getDocument, getDocuments } from "@/integrations/mongodb";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,20 +42,22 @@ const Closet = () => {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, isLoaded, isSignedIn } = useUser();
 
   useEffect(() => {
-    loadClosetItems();
-  }, []);
-
-  const loadClosetItems = async () => {
-    const user = auth.currentUser;
-    
-    if (!user) {
+    if (isLoaded && !isSignedIn) {
       navigate("/auth");
       return;
     }
+    if (isLoaded && isSignedIn) {
+      loadClosetItems();
+    }
+  }, [isLoaded, isSignedIn, navigate]);
 
-    const profile = await getDocument("profiles", user.uid);
+  const loadClosetItems = async () => {
+    if (!user) return;
+
+    const profile = await getDocument("profiles", user.id);
 
     if (!profile) {
       navigate("/onboarding");
@@ -62,16 +65,15 @@ const Closet = () => {
     }
 
     try {
-      // Query without orderBy to avoid Firestore composite index requirement
       const data = await getDocuments<ClosetItem>(
         "closetItems",
-        where("userId", "==", user.uid)
+        { userId: user.id }
       );
 
       // Sort client-side by createdAt (newest first)
       const sortedData = (data || []).sort((a: any, b: any) => {
-        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
-        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+        const dateA = new Date(a.createdAt || 0);
+        const dateB = new Date(b.createdAt || 0);
         return dateB.getTime() - dateA.getTime();
       });
 
@@ -92,7 +94,7 @@ const Closet = () => {
     setDetailDialogOpen(true);
   };
 
-  if (loading) {
+  if (!isLoaded || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin">

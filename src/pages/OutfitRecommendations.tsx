@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { invokeFunction } from "@/integrations/firebase";
+import { invokeFunction } from "@/integrations/mongodb";
 import { Sparkles, ArrowLeft, Loader2, Check } from "lucide-react";
 
 const OutfitRecommendations = () => {
@@ -34,10 +34,10 @@ const OutfitRecommendations = () => {
         date: date || new Date().toISOString().split('T')[0],
       });
 
-      if (data.error) {
+      if ((data as any).error) {
         toast({
           title: "No recommendations",
-          description: data.error,
+          description: (data as any).error,
           variant: "destructive",
         });
         return;
@@ -46,7 +46,7 @@ const OutfitRecommendations = () => {
       setRecommendations(data);
       toast({
         title: "Success!",
-        description: `Generated ${data.recommendations.length} outfit suggestions`,
+        description: `Generated ${(data as any).recommendations.length} outfit suggestions`,
       });
     } catch (error) {
       console.error("Error generating recommendations:", error);
@@ -171,10 +171,7 @@ const OutfitRecommendations = () => {
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {outfit.items.map((item: any) => (
-                      <div
-                        key={item.id}
-                        className="border rounded-lg p-3 space-y-2"
-                      >
+                      <div key={item.id} className="border rounded-lg p-3 space-y-2">
                         {item.image_url && (
                           <img
                             src={item.image_url}
@@ -214,7 +211,7 @@ const OutfitRecommendations = () => {
                     </div>
                   </div>
 
-                  {outfit.styling_tips.length > 0 && (
+                  {outfit.styling_tips?.length > 0 && (
                     <div className="space-y-2">
                       <p className="font-medium text-sm">Styling Tips:</p>
                       <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
@@ -225,7 +222,7 @@ const OutfitRecommendations = () => {
                     </div>
                   )}
 
-                  {outfit.missing_pieces && outfit.missing_pieces.length > 0 && (
+                  {outfit.missing_pieces?.length > 0 && (
                     <div className="bg-muted rounded-lg p-3 space-y-2">
                       <p className="font-medium text-sm">Missing Pieces:</p>
                       <p className="text-sm text-muted-foreground">

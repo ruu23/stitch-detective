@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import { useUser } from "@clerk/clerk-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { auth, getDocuments, where } from "@/integrations/firebase";
+import { getDocuments } from "@/integrations/mongodb";
 import { Loader2, RotateCcw } from "lucide-react";
 
 interface AvatarViewerProps {
@@ -10,29 +11,30 @@ interface AvatarViewerProps {
 }
 
 export const AvatarViewer = ({ userId, className }: AvatarViewerProps) => {
+  const { user } = useUser();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [rotation, setRotation] = useState(0);
 
   useEffect(() => {
     loadAvatar();
-  }, [userId]);
+  }, [userId, user]);
 
   const loadAvatar = async () => {
     try {
       setLoading(true);
       
       let targetUserId = userId;
+      if (!targetUserId && user) {
+        targetUserId = user.id;
+      }
+      
       if (!targetUserId) {
-        const user = auth.currentUser;
-        if (!user) return;
-        targetUserId = user.uid;
+        setLoading(false);
+        return;
       }
 
-      const avatars = await getDocuments<{ avatarModelUrl: string }>(
-        "avatars",
-        where("userId", "==", targetUserId)
-      );
+      const avatars = await getDocuments<{ avatarModelUrl: string }>("avatars", { userId: targetUserId });
 
       if (avatars && avatars.length > 0 && avatars[0].avatarModelUrl) {
         setAvatarUrl(avatars[0].avatarModelUrl);

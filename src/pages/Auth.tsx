@@ -1,112 +1,29 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { firebaseSignUp, firebaseSignIn, onAuthChange } from "@/integrations/firebase";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useUser, SignIn, SignUp } from "@clerk/clerk-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
 import { Sparkles } from "lucide-react";
-import { z } from "zod";
-
-const signUpSchema = z.object({
-  fullName: z.string().trim().min(2, "Name must be at least 2 characters").max(100, "Name must be less than 100 characters"),
-  email: z.string().email("Invalid email address").max(255, "Email must be less than 255 characters"),
-  password: z.string().min(8, "Password must be at least 8 characters").max(72, "Password must be less than 72 characters")
-});
-
-const signInSchema = z.object({
-  email: z.string().email("Invalid email address").max(255, "Email must be less than 255 characters"),
-  password: z.string().min(1, "Password is required")
-});
+import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { isSignedIn, isLoaded } = useUser();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
 
   useEffect(() => {
-    const unsubscribe = onAuthChange((user) => {
-      if (user) {
-        navigate("/dashboard");
-      }
-    });
-    return () => unsubscribe();
-  }, [navigate]);
-
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      if (isLogin) {
-        const validation = signInSchema.safeParse({ email, password });
-        if (!validation.success) {
-          const firstError = validation.error.errors[0];
-          toast({
-            title: "Validation Error",
-            description: firstError.message,
-            variant: "destructive",
-          });
-          setLoading(false);
-          return;
-        }
-
-        await firebaseSignIn(validation.data.email, validation.data.password);
-
-        toast({
-          title: "Welcome back!",
-          description: "You've successfully signed in.",
-        });
-        navigate("/dashboard");
-      } else {
-        const validation = signUpSchema.safeParse({ fullName, email, password });
-        if (!validation.success) {
-          const firstError = validation.error.errors[0];
-          toast({
-            title: "Validation Error",
-            description: firstError.message,
-            variant: "destructive",
-          });
-          setLoading(false);
-          return;
-        }
-
-        await firebaseSignUp(
-          validation.data.email,
-          validation.data.password,
-          validation.data.fullName
-        );
-
-        toast({
-          title: "Account created!",
-          description: "Welcome to StyleSync. Let's set up your profile.",
-        });
-        navigate("/onboarding");
-      }
-    } catch (error: any) {
-      let errorMessage = error.message;
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'An account with this email already exists.';
-      } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-        errorMessage = 'Invalid email or password.';
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = 'Password is too weak.';
-      }
-      
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+    if (isLoaded && isSignedIn) {
+      navigate("/dashboard");
     }
-  };
+  }, [isSignedIn, isLoaded, navigate]);
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Sparkles className="h-12 w-12 text-primary animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -117,60 +34,48 @@ const Auth = () => {
           </div>
           <CardTitle className="text-3xl font-display">StyleSync</CardTitle>
           <CardDescription>
-            {isLogin ? "Sign in to your account" : "Create your account"}
+            {activeTab === "signin" ? "Sign in to your account" : "Create your account"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleAuth} className="space-y-4">
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  type="text"
-                  placeholder="Enter your name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                />
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "signin" | "signup")}>
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="signin">Sign In</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            </TabsList>
+            <TabsContent value="signin">
+              <SignIn 
+                appearance={{
+                  elements: {
+                    rootBox: "w-full",
+                    card: "shadow-none p-0",
+                    headerTitle: "hidden",
+                    headerSubtitle: "hidden",
+                    socialButtonsBlockButton: "border border-input",
+                    formButtonPrimary: "bg-primary hover:bg-primary/90",
+                  }
+                }}
+                afterSignInUrl="/dashboard"
+                redirectUrl="/dashboard"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
+            </TabsContent>
+            <TabsContent value="signup">
+              <SignUp 
+                appearance={{
+                  elements: {
+                    rootBox: "w-full",
+                    card: "shadow-none p-0",
+                    headerTitle: "hidden",
+                    headerSubtitle: "hidden",
+                    socialButtonsBlockButton: "border border-input",
+                    formButtonPrimary: "bg-primary hover:bg-primary/90",
+                  }
+                }}
+                afterSignUpUrl="/onboarding"
+                redirectUrl="/onboarding"
               />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
-            </Button>
-          </form>
-          <div className="mt-4 text-center text-sm">
-            {isLogin ? "Don't have an account? " : "Already have an account? "}
-            <button
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-primary hover:underline font-medium"
-            >
-              {isLogin ? "Sign Up" : "Sign In"}
-            </button>
-          </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>
