@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback } from "react";
+import { useUser } from "@clerk/clerk-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { auth, addDocument, uploadFile } from "@/integrations/firebase";
-import { invokeFunction } from "@/integrations/firebase/functions";
+import { addDocument, invokeFunction } from "@/integrations/mongodb";
+import { uploadFile } from "@/integrations/cloudinary";
 import { Camera, Upload, Crop, Loader2 } from "lucide-react";
 import ReactCrop, { Crop as CropType } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
@@ -19,6 +20,7 @@ interface AddClosetItemDialogProps {
 
 export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddClosetItemDialogProps) => {
   const { toast } = useToast();
+  const { user } = useUser();
   const [step, setStep] = useState<"select" | "crop" | "details" | "analyzing">("select");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [crop, setCrop] = useState<CropType>({ unit: "%", width: 90, height: 90, x: 5, y: 5 });
@@ -84,7 +86,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, finalWidth, finalHeight);
     ctx.drawImage(image, cropX, cropY, cropWidth, cropHeight, 0, 0, finalWidth, finalHeight);
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
       const arr = dataUrl.split(',');
       const bstr = atob(arr[1]);
@@ -101,18 +103,17 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       setStep("analyzing");
       const croppedBlob = await getCroppedImage();
       const compressedFile = await imageCompression(croppedBlob as File, { maxSizeMB: 0.8, maxWidthOrHeight: 1024, useWebWorker: true, fileType: "image/jpeg" });
-      const user = auth.currentUser;
+      
       if (!user) throw new Error("User not authenticated");
       
-      // Upload to Firebase Storage first to get URL
-      const fileName = `closet-items/${user.uid}/${Date.now()}.jpg`;
-      const publicUrl = await uploadFile(fileName, compressedFile, "image/jpeg");
+      // Upload to Cloudinary
+      const publicUrl = await uploadFile(compressedFile, `closet-items/${user.id}`);
       
-      console.log("Image uploaded, calling Cloud Function...");
+      console.log("Image uploaded, calling AI analysis...");
       
-      // Use Firebase Cloud Function for AI analysis with timeout
+      // Use API for AI analysis
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Function timeout - check if functions are deployed")), 30000)
+        setTimeout(() => reject(new Error("Function timeout")), 30000)
       );
       
       const analysisPromise = invokeFunction<{ imageUrl: string }, { analysis: any }>(
@@ -123,7 +124,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       const analysisData = await Promise.race([analysisPromise, timeoutPromise]) as { analysis: any };
       
       if (!analysisData?.analysis) {
-        throw new Error("No analysis data received from function");
+        throw new Error("No analysis data received");
       }
       
       console.log("Analysis complete:", analysisData);
@@ -134,19 +135,7 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       toast({ title: "Analysis complete!", description: "Review the details and save your item" });
     } catch (error: any) {
       console.error("Crop complete error:", error);
-      
-      let errorMessage = "Failed to analyze item";
-      if (error.message?.includes("timeout")) {
-        errorMessage = "Function timeout. Are your Cloud Functions deployed?";
-      } else if (error.code === 'functions/not-found') {
-        errorMessage = "Cloud Function not found. Please deploy your functions.";
-      } else if (error.code === 'functions/unauthenticated') {
-        errorMessage = "Authentication error. Please sign in again.";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to analyze item", variant: "destructive" });
       handleReset();
     } finally {
       setLoading(false);
@@ -156,10 +145,9 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
   const handleSaveItem = async () => {
     try {
       setLoading(true);
-      const user = auth.currentUser;
       if (!user) throw new Error("User not authenticated");
       await addDocument("closetItems", {
-        userId: user.uid,
+        userId: user.id,
         name: itemDetails.name,
         brand: itemDetails.brand || aiAnalysis.brand || null,
         pricePaid: itemDetails.price_paid ? parseFloat(itemDetails.price_paid) : null,

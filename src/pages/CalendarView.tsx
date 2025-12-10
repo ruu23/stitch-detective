@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth, getDocument, getDocuments, where, orderBy } from "@/integrations/firebase";
+import { useUser } from "@clerk/clerk-react";
+import { getDocument, getDocuments } from "@/integrations/mongodb";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 
 interface CalendarLook {
@@ -20,20 +21,22 @@ const CalendarView = () => {
   const [scheduledLooks, setScheduledLooks] = useState<CalendarLook[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { user, isLoaded, isSignedIn } = useUser();
 
   useEffect(() => {
-    loadScheduledLooks();
-  }, []);
-
-  const loadScheduledLooks = async () => {
-    const user = auth.currentUser;
-    
-    if (!user) {
+    if (isLoaded && !isSignedIn) {
       navigate("/auth");
       return;
     }
+    if (isLoaded && isSignedIn) {
+      loadScheduledLooks();
+    }
+  }, [isLoaded, isSignedIn, navigate]);
 
-    const profile = await getDocument("profiles", user.uid);
+  const loadScheduledLooks = async () => {
+    if (!user) return;
+
+    const profile = await getDocument("profiles", user.id);
 
     if (!profile) {
       navigate("/onboarding");
@@ -41,12 +44,7 @@ const CalendarView = () => {
     }
 
     try {
-      const data = await getDocuments<CalendarLook>(
-        "calendarLooks",
-        where("userId", "==", user.uid),
-        orderBy("scheduledDate", "asc")
-      );
-
+      const data = await getDocuments<CalendarLook>("calendarLooks", { userId: user.id });
       setScheduledLooks(data || []);
     } catch (error) {
       console.error("Error loading calendar looks:", error);
@@ -58,6 +56,14 @@ const CalendarView = () => {
   const selectedDateLooks = scheduledLooks.filter(
     (look) => selectedDate && format(new Date(look.scheduledDate), "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd")
   );
+
+  if (!isLoaded || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Sparkles className="h-8 w-8 text-primary animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-20">

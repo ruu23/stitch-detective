@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { User } from "firebase/auth";
-import { auth, getDocument, setDocument, onAuthChange } from "@/integrations/firebase";
+import { useUser } from "@clerk/clerk-react";
+import { getDocument, setDocument } from "@/integrations/mongodb";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -96,34 +96,34 @@ const Onboarding = () => {
   const [occupation, setOccupation] = useState("");
   const [location, setLocation] = useState("");
   const [loading, setLoading] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [authReady, setAuthReady] = useState(false);
+  const [checkingProfile, setCheckingProfile] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, isLoaded, isSignedIn } = useUser();
 
   useEffect(() => {
-    const unsubscribe = onAuthChange(async (user) => {
-      setCurrentUser(user);
-      setAuthReady(true);
-      
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
+    if (isLoaded && !isSignedIn) {
+      navigate("/auth");
+      return;
+    }
+    if (isLoaded && isSignedIn && user) {
+      checkExistingProfile();
+    }
+  }, [isLoaded, isSignedIn, user, navigate]);
 
-      try {
-        const profile = await getDocument("profiles", user.uid);
-        if (profile && (profile as any).stylingPreference) {
-          navigate("/dashboard");
-        }
-      } catch (error) {
-        // Profile doesn't exist, continue with onboarding
-        console.log("No existing profile, continuing with onboarding");
+  const checkExistingProfile = async () => {
+    if (!user) return;
+    
+    try {
+      const profile = await getDocument("profiles", user.id);
+      if (profile && (profile as any).stylingPreference) {
+        navigate("/dashboard");
       }
-    });
-
-    return () => unsubscribe();
-  }, [navigate]);
+    } catch (error) {
+      console.log("No existing profile, continuing with onboarding");
+    }
+    setCheckingProfile(false);
+  };
 
   const handleSaveProfile = async () => {
     if (!stylingPreference) {
@@ -135,7 +135,7 @@ const Onboarding = () => {
       return;
     }
 
-    if (!authReady || !currentUser) {
+    if (!user) {
       toast({
         title: "Please wait",
         description: "Authentication is still loading.",
@@ -146,12 +146,12 @@ const Onboarding = () => {
 
     setLoading(true);
     try {
-      await setDocument("profiles", currentUser.uid, {
-        fullName: currentUser.displayName || "",
+      await setDocument("profiles", user.id, {
+        fullName: user.fullName || "",
         stylingPreference,
         occupation,
         location,
-        createdAt: new Date()
+        createdAt: new Date().toISOString()
       });
 
       toast({
@@ -169,6 +169,14 @@ const Onboarding = () => {
       setLoading(false);
     }
   };
+
+  if (!isLoaded || checkingProfile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Sparkles className="h-12 w-12 text-primary animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">

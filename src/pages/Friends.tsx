@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth, getDocument, getDocuments, addDocument, deleteDocument, where, invokeFunction } from "@/integrations/firebase";
+import { useUser } from "@clerk/clerk-react";
+import { getDocument, getDocuments, addDocument, deleteDocument, invokeFunction } from "@/integrations/mongodb";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +11,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Navigation from "@/components/Navigation";
 import { Search, UserPlus, Users, Clock, Check, X } from "lucide-react";
 import { toast } from "sonner";
-import { db } from "@/integrations/firebase/config";
-import { collection, getDocs, query, limit as firestoreLimit } from "firebase/firestore";
 
 interface Profile {
   id: string;
@@ -46,48 +45,44 @@ interface FriendWithProfile extends Friendship {
 
 const Friends = () => {
   const navigate = useNavigate();
+  const { user, isLoaded, isSignedIn } = useUser();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [friends, setFriends] = useState<FriendWithProfile[]>([]);
   const [pendingRequests, setPendingRequests] = useState<FriendRequestWithProfile[]>([]);
   const [suggestions, setSuggestions] = useState<Profile[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadUserData();
-  }, []);
-
-  const loadUserData = async () => {
-    const user = auth.currentUser;
-    
-    if (!user) {
+    if (isLoaded && !isSignedIn) {
       navigate("/auth");
       return;
     }
+    if (isLoaded && isSignedIn && user) {
+      loadUserData();
+    }
+  }, [isLoaded, isSignedIn, user, navigate]);
 
-    setCurrentUserId(user.uid);
+  const loadUserData = async () => {
+    if (!user) return;
+    
     await Promise.all([
-      loadFriends(user.uid),
-      loadPendingRequests(user.uid),
-      loadSuggestions(user.uid)
+      loadFriends(user.id),
+      loadPendingRequests(user.id),
+      loadSuggestions(user.id)
     ]);
     setLoading(false);
   };
 
   const loadFriends = async (userId: string) => {
     try {
-      const friendships = await getDocuments<Friendship>(
-        "friendships",
-        where("userId", "==", userId)
-      );
+      const friendships = await getDocuments<Friendship>("friendships", { userId });
 
       if (!friendships || friendships.length === 0) {
         setFriends([]);
         return;
       }
 
-      // Fetch profiles for all friends
       const friendsWithProfiles: FriendWithProfile[] = [];
       for (const friendship of friendships) {
         const profile = await getDocument<Profile>("profiles", friendship.friendId);
@@ -105,19 +100,8 @@ const Friends = () => {
 
   const loadPendingRequests = async (userId: string) => {
     try {
-      // Get requests where user is requester
-      const sentRequests = await getDocuments<FriendRequest>(
-        "friendRequests",
-        where("requesterId", "==", userId),
-        where("status", "==", "pending")
-      );
-
-      // Get requests where user is receiver
-      const receivedRequests = await getDocuments<FriendRequest>(
-        "friendRequests",
-        where("receiverId", "==", userId),
-        where("status", "==", "pending")
-      );
+      const sentRequests = await getDocuments<FriendRequest>("friendRequests", { requesterId: userId, status: "pending" });
+      const receivedRequests = await getDocuments<FriendRequest>("friendRequests", { receiverId: userId, status: "pending" });
 
       const allRequests = [...(sentRequests || []), ...(receivedRequests || [])];
 
@@ -126,7 +110,6 @@ const Friends = () => {
         return;
       }
 
-      // Fetch profiles for requesters and receivers
       const requestsWithProfiles: FriendRequestWithProfile[] = [];
       for (const request of allRequests) {
         const requesterProfile = await getDocument<Profile>("profiles", request.requesterId);
@@ -146,21 +129,14 @@ const Friends = () => {
 
   const loadSuggestions = async (userId: string) => {
     try {
-      // Get all profiles (limited)
-      const profilesQuery = query(collection(db, "profiles"), firestoreLimit(20));
-      const querySnapshot = await getDocs(profilesQuery);
-      const allProfiles = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Profile[];
+      const allProfiles = await getDocuments<Profile>("profiles", { limit: 20 });
 
-      // Filter out current user, existing friends, and pending requests
       const friendIds = friends.map(f => f.friendId);
       const pendingIds = pendingRequests.map(r => 
         r.requesterId === userId ? r.receiverId : r.requesterId
       );
 
-      const filtered = allProfiles.filter(
+      const filtered = (allProfiles || []).filter(
         p => p.id !== userId && !friendIds.includes(p.id) && !pendingIds.includes(p.id)
       );
 
@@ -171,22 +147,16 @@ const Friends = () => {
   };
 
   const handleSearch = async () => {
-    if (!searchQuery.trim()) {
+    if (!searchQuery.trim() || !user) {
       setSearchResults([]);
       return;
     }
 
     try {
-      // Firebase doesn't support ILIKE, so we'll do client-side filtering
-      const profilesQuery = query(collection(db, "profiles"), firestoreLimit(100));
-      const querySnapshot = await getDocs(profilesQuery);
-      const allProfiles = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Profile[];
+      const allProfiles = await getDocuments<Profile>("profiles", { search: searchQuery });
 
-      const filtered = allProfiles.filter(
-        p => p.id !== currentUserId && 
+      const filtered = (allProfiles || []).filter(
+        p => p.id !== user.id && 
              p.fullName?.toLowerCase().includes(searchQuery.toLowerCase())
       );
 
@@ -198,29 +168,32 @@ const Friends = () => {
   };
 
   const sendFriendRequest = async (receiverId: string) => {
+    if (!user) return;
+    
     try {
       await addDocument("friendRequests", {
-        requesterId: currentUserId,
+        requesterId: user.id,
         receiverId: receiverId,
         status: "pending"
       });
 
       toast.success("Friend request sent!");
-      loadPendingRequests(currentUserId);
-      loadSuggestions(currentUserId);
+      loadPendingRequests(user.id);
+      loadSuggestions(user.id);
     } catch (error) {
       toast.error("Failed to send friend request");
     }
   };
 
-  const acceptFriendRequest = async (requestId: string, requesterId: string) => {
+  const acceptFriendRequest = async (requestId: string) => {
+    if (!user) return;
+    
     try {
-      // Use Firebase function or direct Firestore operations
       await invokeFunction("acceptFriendRequest", { requestId });
 
       toast.success("Friend request accepted!");
-      loadFriends(currentUserId);
-      loadPendingRequests(currentUserId);
+      loadFriends(user.id);
+      loadPendingRequests(user.id);
     } catch (error) {
       console.error("Failed to accept request:", error);
       toast.error("Failed to accept request");
@@ -228,20 +201,24 @@ const Friends = () => {
   };
 
   const rejectFriendRequest = async (requestId: string) => {
+    if (!user) return;
+    
     try {
       await deleteDocument("friendRequests", requestId);
       toast.success("Friend request rejected");
-      loadPendingRequests(currentUserId);
+      loadPendingRequests(user.id);
     } catch (error) {
       toast.error("Failed to reject request");
     }
   };
 
-  const removeFriend = async (friendshipId: string, friendId: string) => {
+  const removeFriend = async (friendshipId: string) => {
+    if (!user) return;
+    
     try {
       await deleteDocument("friendships", friendshipId);
       toast.success("Friend removed");
-      loadFriends(currentUserId);
+      loadFriends(user.id);
     } catch (error) {
       toast.error("Failed to remove friend");
     }
@@ -252,7 +229,7 @@ const Friends = () => {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
-  if (loading) {
+  if (!isLoaded || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -290,21 +267,21 @@ const Friends = () => {
           {searchResults.length > 0 && (
             <Card className="mt-4">
               <CardContent className="p-4 space-y-3">
-                {searchResults.map((user) => (
-                  <div key={user.id} className="flex items-center justify-between">
+                {searchResults.map((searchUser) => (
+                  <div key={searchUser.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Avatar>
-                        <AvatarImage src={user.avatarUrl || ""} />
-                        <AvatarFallback>{getInitials(user.fullName)}</AvatarFallback>
+                        <AvatarImage src={searchUser.avatarUrl || ""} />
+                        <AvatarFallback>{getInitials(searchUser.fullName)}</AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium">{user.fullName || "Anonymous"}</p>
+                        <p className="font-medium">{searchUser.fullName || "Anonymous"}</p>
                         <p className="text-sm text-muted-foreground">
-                          {user.occupation || "User"} • {user.location || "Unknown"}
+                          {searchUser.occupation || "User"} • {searchUser.location || "Unknown"}
                         </p>
                       </div>
                     </div>
-                    <Button size="sm" onClick={() => sendFriendRequest(user.id)}>
+                    <Button size="sm" onClick={() => sendFriendRequest(searchUser.id)}>
                       <UserPlus className="h-4 w-4 mr-1" />
                       Add
                     </Button>
@@ -333,22 +310,22 @@ const Friends = () => {
                 </CardContent>
               </Card>
             ) : (
-              suggestions.map((user) => (
-                <Card key={user.id}>
+              suggestions.map((suggestionUser) => (
+                <Card key={suggestionUser.id}>
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-12 w-12">
-                        <AvatarImage src={user.avatarUrl || ""} />
-                        <AvatarFallback>{getInitials(user.fullName)}</AvatarFallback>
+                        <AvatarImage src={suggestionUser.avatarUrl || ""} />
+                        <AvatarFallback>{getInitials(suggestionUser.fullName)}</AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium">{user.fullName || "Anonymous"}</p>
+                        <p className="font-medium">{suggestionUser.fullName || "Anonymous"}</p>
                         <p className="text-sm text-muted-foreground">
-                          {user.occupation || "User"} • {user.location || "Unknown"}
+                          {suggestionUser.occupation || "User"} • {suggestionUser.location || "Unknown"}
                         </p>
                       </div>
                     </div>
-                    <Button size="sm" onClick={() => sendFriendRequest(user.id)}>
+                    <Button size="sm" onClick={() => sendFriendRequest(suggestionUser.id)}>
                       <UserPlus className="h-4 w-4 mr-1" />
                       Add
                     </Button>
@@ -369,7 +346,7 @@ const Friends = () => {
               </Card>
             ) : (
               pendingRequests.map((request) => {
-                const isReceived = request.receiverId === currentUserId;
+                const isReceived = request.receiverId === user?.id;
                 const profile = isReceived ? request.requesterProfile : request.receiverProfile;
                 
                 return (
@@ -394,7 +371,7 @@ const Friends = () => {
                         <div className="flex gap-2">
                           <Button
                             size="sm"
-                            onClick={() => acceptFriendRequest(request.id, request.requesterId)}
+                            onClick={() => acceptFriendRequest(request.id)}
                           >
                             <Check className="h-4 w-4" />
                           </Button>
@@ -455,7 +432,7 @@ const Friends = () => {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => removeFriend(friendship.id, friendship.friendId)}
+                      onClick={() => removeFriend(friendship.id)}
                     >
                       Remove
                     </Button>

@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useUser } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Camera, Check, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { auth, addDocument, uploadFile, invokeFunction } from "@/integrations/firebase";
+import { addDocument, invokeFunction } from "@/integrations/mongodb";
+import { uploadFile } from "@/integrations/cloudinary";
 
 type ScanStep = "intro" | "front" | "side" | "face" | "measurements" | "avatar-processing" | "processing" | "complete";
 
 const BodyScan = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useUser();
   const [step, setStep] = useState<ScanStep>("intro");
   const [frontPhoto, setFrontPhoto] = useState<string | null>(null);
   const [sidePhoto, setSidePhoto] = useState<string | null>(null);
@@ -52,26 +55,19 @@ const BodyScan = () => {
         setStep("processing");
       }
 
-      const user = auth.currentUser;
       if (!user) throw new Error("User not authenticated");
 
       let aiAnalysis = null;
-      const timestamp = Date.now();
 
-      // Convert base64 to blob
+      // Convert base64 to blob and upload to Cloudinary
       const frontBlob = await fetch(frontUrl).then(r => r.blob());
       const sideBlob = await fetch(sideUrl).then(r => r.blob());
       const faceBlob = await fetch(faceUrl).then(r => r.blob());
 
-      // Upload to Firebase Storage
-      const frontPath = `body-scans/${user.uid}/front-${timestamp}.jpg`;
-      const sidePath = `body-scans/${user.uid}/side-${timestamp}.jpg`;
-      const facePath = `body-scans/${user.uid}/face-${timestamp}.jpg`;
-
       const [frontPublicUrl, sidePublicUrl, facePublicUrl] = await Promise.all([
-        uploadFile(frontPath, frontBlob, "image/jpeg"),
-        uploadFile(sidePath, sideBlob, "image/jpeg"),
-        uploadFile(facePath, faceBlob, "image/jpeg"),
+        uploadFile(frontBlob, `body-scans/${user.id}`),
+        uploadFile(sideBlob, `body-scans/${user.id}`),
+        uploadFile(faceBlob, `body-scans/${user.id}`),
       ]);
 
       // Get AI analysis if requested
@@ -89,11 +85,11 @@ const BodyScan = () => {
 
           if (analysisData) {
             aiAnalysis = analysisData;
-            if (analysisData.estimated_measurements) {
-              setHeight(String(analysisData.estimated_measurements.height || ""));
-              setBust(String(analysisData.estimated_measurements.bust || ""));
-              setWaist(String(analysisData.estimated_measurements.waist || ""));
-              setHips(String(analysisData.estimated_measurements.hips || ""));
+            if ((analysisData as any).estimated_measurements) {
+              setHeight(String((analysisData as any).estimated_measurements.height || ""));
+              setBust(String((analysisData as any).estimated_measurements.bust || ""));
+              setWaist(String((analysisData as any).estimated_measurements.waist || ""));
+              setHips(String((analysisData as any).estimated_measurements.hips || ""));
             }
           }
         } catch (analysisError) {
@@ -106,17 +102,17 @@ const BodyScan = () => {
         }
       }
 
-      // Save to Firestore
+      // Save to database
       const bodyScanData = await addDocument("bodyScans", {
-        userId: user.uid,
+        userId: user.id,
         frontImageUrl: frontPublicUrl,
         sideImageUrl: sidePublicUrl,
         faceImageUrl: facePublicUrl,
-        height: height ? parseFloat(height) : (aiAnalysis?.estimated_measurements?.height || null),
-        bust: bust ? parseFloat(bust) : (aiAnalysis?.estimated_measurements?.bust || null),
-        waist: waist ? parseFloat(waist) : (aiAnalysis?.estimated_measurements?.waist || null),
-        hips: hips ? parseFloat(hips) : (aiAnalysis?.estimated_measurements?.hips || null),
-        bodyShape: aiAnalysis?.body_shape || null,
+        height: height ? parseFloat(height) : ((aiAnalysis as any)?.estimated_measurements?.height || null),
+        bust: bust ? parseFloat(bust) : ((aiAnalysis as any)?.estimated_measurements?.bust || null),
+        waist: waist ? parseFloat(waist) : ((aiAnalysis as any)?.estimated_measurements?.waist || null),
+        hips: hips ? parseFloat(hips) : ((aiAnalysis as any)?.estimated_measurements?.hips || null),
+        bodyShape: (aiAnalysis as any)?.body_shape || null,
         measurementsJson: aiAnalysis ? JSON.stringify(aiAnalysis) : null,
       });
 
@@ -132,10 +128,9 @@ const BodyScan = () => {
             frontImageUrl: frontPublicUrl,
             sideImageUrl: sidePublicUrl,
             faceImageUrl: facePublicUrl,
-            bodyScanId: bodyScanData.id,
           });
 
-          if (avatarData?.success) {
+          if ((avatarData as any)?.success) {
             toast({
               title: "Avatar Generated!",
               description: "Your 3D avatar is ready",
@@ -183,7 +178,7 @@ const BodyScan = () => {
                   Let's find your perfect fit
                 </h1>
                 <p className="text-muted-foreground">
-                  Take 2 quick photos to get personalized styling
+                  Take 3 quick photos to get personalized styling
                 </p>
               </div>
 
@@ -210,52 +205,12 @@ const BodyScan = () => {
                 </div>
               </div>
 
-              <div className="space-y-3 text-left">
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-xs font-semibold text-primary">1</span>
-                  </div>
-                  <div>
-                    <p className="font-medium">Front facing photo</p>
-                    <p className="text-sm text-muted-foreground">
-                      Stand straight, arms at your sides
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-xs font-semibold text-primary">2</span>
-                  </div>
-                  <div>
-                    <p className="font-medium">Side profile photo</p>
-                    <p className="text-sm text-muted-foreground">
-                      Turn to the side, maintain posture
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-xs font-semibold text-primary">3</span>
-                  </div>
-                  <div>
-                    <p className="font-medium">Face close-up</p>
-                    <p className="text-sm text-muted-foreground">
-                      Clear photo of your face for avatar generation
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               <Button size="lg" className="w-full" onClick={() => setStep("front")}>
                 <Camera className="mr-2 h-5 w-5" />
                 Start Body Scan
               </Button>
 
-              <Button
-                variant="ghost"
-                className="w-full"
-                onClick={() => navigate(-1)}
-              >
+              <Button variant="ghost" className="w-full" onClick={() => navigate(-1)}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Go Back
               </Button>
@@ -270,12 +225,8 @@ const BodyScan = () => {
                 <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Camera className="h-8 w-8 text-primary" />
                 </div>
-                <h2 className="text-2xl font-display font-bold mb-2">
-                  Front Photo
-                </h2>
-                <p className="text-muted-foreground">
-                  Stand straight facing the camera
-                </p>
+                <h2 className="text-2xl font-display font-bold mb-2">Front Photo</h2>
+                <p className="text-muted-foreground">Stand straight facing the camera</p>
               </div>
 
               <div className="bg-muted rounded-xl p-12 flex items-center justify-center">
@@ -299,11 +250,7 @@ const BodyScan = () => {
                   className="hidden"
                   onChange={(e) => handlePhotoCapture(e, "front")}
                 />
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setStep("intro")}
-                >
+                <Button variant="outline" className="w-full" onClick={() => setStep("intro")}>
                   Cancel
                 </Button>
               </div>
@@ -318,12 +265,8 @@ const BodyScan = () => {
                 <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Check className="h-8 w-8 text-primary" />
                 </div>
-                <h2 className="text-2xl font-display font-bold mb-2">
-                  Side Photo
-                </h2>
-                <p className="text-muted-foreground">
-                  Turn to your side, keep the same posture
-                </p>
+                <h2 className="text-2xl font-display font-bold mb-2">Side Photo</h2>
+                <p className="text-muted-foreground">Turn to your side, keep the same posture</p>
               </div>
 
               <div className="bg-muted rounded-xl p-12 flex items-center justify-center">
@@ -347,11 +290,7 @@ const BodyScan = () => {
                   className="hidden"
                   onChange={(e) => handlePhotoCapture(e, "side")}
                 />
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setStep("front")}
-                >
+                <Button variant="outline" className="w-full" onClick={() => setStep("front")}>
                   Retake Front Photo
                 </Button>
               </div>
@@ -366,12 +305,8 @@ const BodyScan = () => {
                 <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Check className="h-8 w-8 text-primary" />
                 </div>
-                <h2 className="text-2xl font-display font-bold mb-2">
-                  Face Close-Up
-                </h2>
-                <p className="text-muted-foreground">
-                  Take a clear photo of your face for hyper-realistic avatar
-                </p>
+                <h2 className="text-2xl font-display font-bold mb-2">Face Close-Up</h2>
+                <p className="text-muted-foreground">Take a clear photo of your face for avatar</p>
               </div>
 
               <div className="bg-muted rounded-xl p-12 flex items-center justify-center">
@@ -395,11 +330,7 @@ const BodyScan = () => {
                   className="hidden"
                   onChange={(e) => handlePhotoCapture(e, "face")}
                 />
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setStep("side")}
-                >
+                <Button variant="outline" className="w-full" onClick={() => setStep("side")}>
                   Retake Side Photo
                 </Button>
               </div>
@@ -407,20 +338,16 @@ const BodyScan = () => {
           </Card>
         )}
 
-        {step === "measurements" && (
+        {step === "measurements" && frontPhoto && sidePhoto && facePhoto && (
           <Card>
             <CardContent className="p-8 space-y-6">
               <div className="text-center">
-                <h2 className="text-2xl font-display font-bold mb-2">
-                  Confirm Your Measurements
-                </h2>
+                <h2 className="text-2xl font-display font-bold mb-2">Confirm Your Measurements</h2>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium mb-1.5 block">
-                    Height (cm)
-                  </label>
+                  <label className="text-sm font-medium mb-1.5 block">Height (cm)</label>
                   <input
                     type="number"
                     className="w-full h-10 px-3 rounded-md border border-input bg-background"
@@ -430,9 +357,7 @@ const BodyScan = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1.5 block">
-                    Bust (cm)
-                  </label>
+                  <label className="text-sm font-medium mb-1.5 block">Bust (cm)</label>
                   <input
                     type="number"
                     className="w-full h-10 px-3 rounded-md border border-input bg-background"
@@ -442,9 +367,7 @@ const BodyScan = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1.5 block">
-                    Waist (cm)
-                  </label>
+                  <label className="text-sm font-medium mb-1.5 block">Waist (cm)</label>
                   <input
                     type="number"
                     className="w-full h-10 px-3 rounded-md border border-input bg-background"
@@ -454,9 +377,7 @@ const BodyScan = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1.5 block">
-                    Hips (cm)
-                  </label>
+                  <label className="text-sm font-medium mb-1.5 block">Hips (cm)</label>
                   <input
                     type="number"
                     className="w-full h-10 px-3 rounded-md border border-input bg-background"
@@ -471,24 +392,16 @@ const BodyScan = () => {
                 <Button
                   size="lg"
                   className="w-full"
-                  onClick={() => {
-                    if (frontPhoto && sidePhoto && facePhoto) {
-                      handleSaveScan(frontPhoto, sidePhoto, facePhoto, true, true);
-                    }
-                  }}
+                  onClick={() => handleSaveScan(frontPhoto, sidePhoto, facePhoto, true, true)}
                 >
-                  Save & Generate Avatar
+                  Use AI Analysis + Generate Avatar
                 </Button>
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => {
-                    if (frontPhoto && sidePhoto && facePhoto) {
-                      handleSaveScan(frontPhoto, sidePhoto, facePhoto, true, false);
-                    }
-                  }}
+                  onClick={() => handleSaveScan(frontPhoto, sidePhoto, facePhoto, false, false)}
                 >
-                  Save Without Avatar
+                  Save Manual Measurements Only
                 </Button>
               </div>
             </CardContent>
@@ -498,16 +411,12 @@ const BodyScan = () => {
         {(step === "processing" || step === "avatar-processing") && (
           <Card>
             <CardContent className="p-8 text-center space-y-6">
-              <div className="animate-spin w-16 h-16 border-4 border-primary border-t-transparent rounded-full mx-auto" />
+              <div className="animate-spin mx-auto w-16 h-16 border-4 border-primary border-t-transparent rounded-full"></div>
               <div>
                 <h2 className="text-2xl font-display font-bold mb-2">
-                  {step === "avatar-processing" ? "Creating Your Avatar" : "Processing"}
+                  {step === "avatar-processing" ? "Generating Your Avatar..." : "Processing..."}
                 </h2>
-                <p className="text-muted-foreground">
-                  {step === "avatar-processing" 
-                    ? "Generating your hyper-realistic 3D avatar..." 
-                    : "Analyzing your photos and saving your measurements..."}
-                </p>
+                <p className="text-muted-foreground">This may take a moment</p>
               </div>
             </CardContent>
           </Card>
@@ -520,12 +429,8 @@ const BodyScan = () => {
                 <Check className="h-8 w-8 text-green-600" />
               </div>
               <div>
-                <h2 className="text-2xl font-display font-bold mb-2">
-                  Body Scan Complete!
-                </h2>
-                <p className="text-muted-foreground">
-                  Your measurements and avatar have been saved.
-                </p>
+                <h2 className="text-2xl font-display font-bold mb-2">Body Scan Complete!</h2>
+                <p className="text-muted-foreground">Redirecting to dashboard...</p>
               </div>
             </CardContent>
           </Card>
