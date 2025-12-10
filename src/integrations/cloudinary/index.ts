@@ -1,7 +1,7 @@
 // Cloudinary Integration for file uploads
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dijyk3fhr';
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'ml_default';
+const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'stylesync_unsigned';
 
 export async function uploadFile(
   file: Blob | File,
@@ -20,11 +20,16 @@ export async function uploadFile(
     }
   );
 
+  const data = await response.json();
+  
   if (!response.ok) {
-    throw new Error('Failed to upload file to Cloudinary');
+    const errorMsg = data?.error?.message || 'Upload failed';
+    if (errorMsg.includes('preset')) {
+      throw new Error(`Cloudinary upload preset "${UPLOAD_PRESET}" not found. Please create an unsigned upload preset named "${UPLOAD_PRESET}" in your Cloudinary dashboard.`);
+    }
+    throw new Error(`Cloudinary upload failed: ${errorMsg}`);
   }
 
-  const data = await response.json();
   return data.secure_url;
 }
 
