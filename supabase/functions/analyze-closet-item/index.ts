@@ -25,8 +25,8 @@ Deno.serve(async (req) => {
       throw new Error("LOVABLE_API_KEY not configured");
     }
 
-    // Use Lovable AI for clothing analysis
-    const response = await fetch("https://api.lovable.dev/v1/chat/completions", {
+    // Use Lovable AI Gateway for clothing analysis
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${lovableApiKey}`,
