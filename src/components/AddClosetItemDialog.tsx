@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { addDocument, invokeFunction } from "@/integrations/mongodb";
+import { addDocument } from "@/integrations/mongodb";
 import { uploadFile } from "@/integrations/cloudinary";
+import { supabase } from "@/integrations/supabase/client";
 import { Camera, Upload, Crop, Loader2 } from "lucide-react";
 import ReactCrop, { Crop as CropType } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
@@ -111,17 +112,16 @@ export const AddClosetItemDialog = ({ open, onOpenChange, onSuccess }: AddCloset
       
       console.log("Image uploaded, calling AI analysis...");
       
-      // Use API for AI analysis
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Function timeout")), 30000)
+      // Use Supabase Edge Function for AI analysis
+      const { data: analysisData, error: analysisError } = await supabase.functions.invoke(
+        'analyze-closet-item',
+        { body: { imageUrl: publicUrl } }
       );
       
-      const analysisPromise = invokeFunction<{ imageUrl: string }, { analysis: any }>(
-        'analyzeClosetItem', 
-        { imageUrl: publicUrl }
-      );
-      
-      const analysisData = await Promise.race([analysisPromise, timeoutPromise]) as { analysis: any };
+      if (analysisError) {
+        console.error("Analysis error:", analysisError);
+        throw new Error(analysisError.message || "Analysis failed");
+      }
       
       if (!analysisData?.analysis) {
         throw new Error("No analysis data received");
