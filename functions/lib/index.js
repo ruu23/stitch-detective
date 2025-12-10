@@ -222,7 +222,7 @@ exports.generateOutfitRecommendations = functions.https.onCall(async (data, cont
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
     const userId = context.auth.uid;
-    const { occasion, date } = data;
+    const { occasion } = data;
     try {
         // Get user profile
         const profileDoc = await db.collection('profiles').doc(userId).get();
@@ -344,7 +344,7 @@ exports.generateAvatar = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
     const userId = context.auth.uid;
-    const { frontImageUrl, sideImageUrl, faceImageUrl, bodyScanId } = data;
+    const { frontImageUrl, sideImageUrl, faceImageUrl } = data;
     try {
         const LOVABLE_API_KEY = (_a = functions.config().lovable) === null || _a === void 0 ? void 0 : _a.api_key;
         if (!LOVABLE_API_KEY) {
